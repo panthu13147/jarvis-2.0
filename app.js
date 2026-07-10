@@ -484,10 +484,15 @@
 
     try {
       currentAbortController = new AbortController();
+      const currentPrefs = JSON.parse(localStorage.getItem('jarvis_prefs') || '{"model": "llama-3.3-70b-versatile", "voice": "sapi5"}');
       const resp = await fetch(`${API_BASE}/api/command`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: clean }),
+        body: JSON.stringify({ 
+          text: clean,
+          model: currentPrefs.model,
+          voice: currentPrefs.voice
+        }),
         signal: currentAbortController.signal
       });
       
@@ -711,6 +716,101 @@
       pillBrain.innerHTML = '<span class="dot"></span> Offline';
       addMessage('jarvis', 'Backend server not detected. Start it with: uvicorn server:app --reload');
     }
+  }
+
+  // ── Settings Modal Logic ───────────────────────────────────────
+  const settingsModal = document.getElementById('settingsModal');
+  const settingsBtn = document.getElementById('settingsBtn');
+  const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+  const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+  const modelSelect = document.getElementById('modelSelect');
+  const voiceSelect = document.getElementById('voiceSelect');
+  const themeSelect = document.getElementById('themeSelect');
+
+  // Load preferences
+  const prefs = JSON.parse(localStorage.getItem('jarvis_prefs') || '{"model": "llama-3.3-70b-versatile", "voice": "sapi5", "theme": "iron-man"}');
+  modelSelect.value = prefs.model || 'llama-3.3-70b-versatile';
+  voiceSelect.value = prefs.voice || 'sapi5';
+  themeSelect.value = prefs.theme || 'iron-man';
+  applyTheme(themeSelect.value);
+
+  settingsBtn.addEventListener('click', () => settingsModal.classList.add('active'));
+  closeSettingsBtn.addEventListener('click', () => settingsModal.classList.remove('active'));
+  
+  saveSettingsBtn.addEventListener('click', () => {
+    prefs.model = modelSelect.value;
+    prefs.voice = voiceSelect.value;
+    prefs.theme = themeSelect.value;
+    localStorage.setItem('jarvis_prefs', JSON.stringify(prefs));
+    applyTheme(prefs.theme);
+    metricModel.textContent = modelSelect.options[modelSelect.selectedIndex].text;
+    settingsModal.classList.remove('active');
+  });
+
+  function applyTheme(theme) {
+    const root = document.documentElement;
+    if (theme === 'ultron') {
+      root.style.setProperty('--primary', '#ff3d00');
+      root.style.setProperty('--primary-glow', 'rgba(255,61,0,0.5)');
+      root.style.setProperty('--blue-core', '#ff9100');
+    } else if (theme === 'vision') {
+      root.style.setProperty('--primary', '#00e676');
+      root.style.setProperty('--primary-glow', 'rgba(0,230,118,0.5)');
+      root.style.setProperty('--blue-core', '#ffea00');
+    } else { // iron-man default
+      root.style.setProperty('--primary', '#00e5ff');
+      root.style.setProperty('--primary-glow', 'rgba(0, 229, 255, 0.4)');
+      root.style.setProperty('--blue-core', '#e0f7fa');
+    }
+  }
+
+  // ── History Sidebar Logic ──────────────────────────────────────
+  const historyBtn = document.getElementById('historyBtn');
+  const closeHistoryBtn = document.getElementById('closeHistoryBtn');
+  const historySidebar = document.getElementById('historySidebar');
+  const historyList = document.getElementById('historyList');
+
+  if (historyBtn) {
+    historyBtn.addEventListener('click', () => {
+      historySidebar.classList.add('active');
+      loadHistory();
+    });
+  }
+  if (closeHistoryBtn) {
+    closeHistoryBtn.addEventListener('click', () => historySidebar.classList.remove('active'));
+  }
+
+  async function loadHistory() {
+    historyList.innerHTML = '<div style="color:var(--muted); font-size:0.8rem; text-align:center;">Loading...</div>';
+    try {
+      const resp = await fetch(`${API_BASE}/api/history`);
+      if (resp.ok) {
+        const sessions = await resp.json();
+        if (sessions.length === 0) {
+          historyList.innerHTML = '<div style="color:var(--muted); font-size:0.8rem; text-align:center;">No past sessions found.</div>';
+          return;
+        }
+        historyList.innerHTML = '';
+        sessions.forEach(session => {
+          const item = document.createElement('div');
+          item.className = 'history-item';
+          item.innerHTML = `<div class="history-item-date">${session.date}</div><div>${session.preview}</div>`;
+          item.addEventListener('click', () => {
+            loadSession(session.id);
+            historySidebar.classList.remove('active');
+          });
+          historyList.appendChild(item);
+        });
+      }
+    } catch(e) {
+      historyList.innerHTML = '<div style="color:var(--muted); font-size:0.8rem; text-align:center;">Failed to load history.</div>';
+    }
+  }
+
+  async function loadSession(id) {
+    // For now just clear current chat. Real impl would fetch full log.
+    chatLog.innerHTML = '';
+    addMessage('jarvis', `Loaded session ${id}. (Full log loading to be implemented in backend)`);
   }
 
   // ── Initialization Overlay ───────────────────────────────────────

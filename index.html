@@ -60,9 +60,19 @@
 
     <!-- Right: Chat + Controls -->
     <section class="chat-section boot-slide-left">
+      <div class="history-sidebar" id="historySidebar">
+        <div class="history-header">
+          <h3>Past Sessions</h3>
+          <button class="icon-btn" id="closeHistoryBtn">&#x2715;</button>
+        </div>
+        <div class="history-list" id="historyList">
+          <!-- Populated by JS -->
+        </div>
+      </div>
       <div class="chat-header">
         <h2>Command Center</h2>
         <div class="chat-actions">
+          <button class="icon-btn" id="historyBtn" title="History">&#9776;</button>
           <button class="icon-btn" id="settingsBtn" title="Settings">&#x2699;</button>
           <button class="icon-btn" id="clearBtn" title="Clear chat">&#x2715;</button>
         </div>
@@ -110,6 +120,44 @@
         </div>
       </div>
     </section>
+
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settingsModal">
+      <div class="modal-content boot-scale">
+        <div class="modal-header">
+          <h2>System Preferences</h2>
+          <button class="icon-btn close-modal" id="closeSettingsBtn">&#x2715;</button>
+        </div>
+        <div class="modal-body">
+          <div class="setting-group">
+            <label>LLM Model</label>
+            <select id="modelSelect">
+              <option value="llama-3.3-70b-versatile">LLaMA 3.3 70B (Fast, Default)</option>
+              <option value="mixtral-8x7b-32768">Mixtral 8x7B (Creative)</option>
+            </select>
+          </div>
+          <div class="setting-group">
+            <label>TTS Engine</label>
+            <select id="voiceSelect">
+              <option value="sapi5">Windows SAPI5 (Fast, Offline)</option>
+              <option value="edge">Edge TTS (High Quality, Online)</option>
+            </select>
+          </div>
+          <div class="setting-group">
+            <label>Visual Theme</label>
+            <select id="themeSelect">
+              <option value="iron-man">Iron Man (Cyan/Blue)</option>
+              <option value="ultron">Ultron (Red/Orange)</option>
+              <option value="vision">Vision (Green/Yellow)</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="primary-btn" id="saveSettingsBtn">Save Configuration</button>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <script src="orb.js"></script>

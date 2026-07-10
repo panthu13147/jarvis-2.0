@@ -355,8 +355,13 @@ def _edge_tts_synthesize(text: str) -> bytes | None:
         return None
 
 
-def synthesize_speech(text: str) -> bytes | None:
-    """Try TTS in order: Pocket TTS (clone) → Groq TTS → Edge TTS fallback."""
+def synthesize_speech(text: str, voice_pref: str = "sapi5") -> bytes | None:
+    """Try TTS in order based on preference."""
+    if voice_pref == "edge":
+        result = _edge_tts_synthesize(text)
+        if result:
+            return result, "audio/mpeg"
+            
     # 1. Pocket TTS voice cloning (if server running on 8001)
     if _pocket_tts_available():
         result = _pocket_tts_synthesize(text)
@@ -391,6 +396,8 @@ app.mount("/static", StaticFiles(directory=str(BASE_DIR)), name="static")
 
 class CommandRequest(BaseModel):
     text: str
+    model: str = GROQ_LLM_MODEL
+    voice: str = "sapi5"
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -430,6 +437,46 @@ def state():
     }
 
 
+# Session persistence
+SESSION_ID = datetime.now().strftime("%Y%m%d_%H%M%S")
+HISTORY_FILE = BASE_DIR / "history.json"
+
+def save_history():
+    history = []
+    if HISTORY_FILE.exists():
+        try:
+            with open(HISTORY_FILE, "r") as f:
+                history = json.load(f)
+        except Exception:
+            pass
+    
+    # Update current session
+    session = next((s for s in history if s["id"] == SESSION_ID), None)
+    if not session:
+        session = {"id": SESSION_ID, "date": datetime.now().strftime("%Y-%m-%d %H:%M"), "preview": "", "messages": []}
+        history.insert(0, session)
+        
+    session["messages"] = conversation
+    if len(conversation) > 0:
+        for msg in conversation:
+            if msg["role"] == "user":
+                session["preview"] = msg["content"][:40] + "..."
+                break
+                
+    with open(HISTORY_FILE, "w") as f:
+        json.dump(history, f, indent=2)
+
+@app.get("/api/history")
+def get_history():
+    if HISTORY_FILE.exists():
+        try:
+            with open(HISTORY_FILE, "r") as f:
+                history = json.load(f)
+            return history
+        except Exception:
+            return []
+    return []
+
 @app.post("/api/command")
 def command(payload: CommandRequest):
     text = payload.text.strip()
@@ -446,6 +493,8 @@ def command(payload: CommandRequest):
         if len(conversation) > MAX_CONVERSATION:
             conversation.pop(0)
             conversation.pop(0)
+            
+        save_history()
 
         system_msg = get_system_prompt()
         try:
@@ -459,7 +508,7 @@ def command(payload: CommandRequest):
         messages = [{"role": "system", "content": system_msg}] + conversation
         
         req_payload = {
-            "model": GROQ_LLM_MODEL,
+            "model": payload.model,
             "messages": messages,
             "temperature": 0.7,
             "max_tokens": 512,
@@ -524,6 +573,7 @@ def command(payload: CommandRequest):
                 ]
             }
             conversation.append(assistant_message)
+            save_history()
             
             for tc in assistant_message["tool_calls"]:
                 func_name = tc["function"]["name"]
@@ -567,12 +617,14 @@ def command(payload: CommandRequest):
                         content = delta["content"]
                         full_text += content
                         yield f"data: {json.dumps({'chunk': content})}\n\n"
-                        
-        if full_text:
-            conversation.append({"role": "assistant", "content": sanitize_reply(full_text)})
+        else:
+            final_text = sanitize_reply(full_text)
+            assistant_message = {"role": "assistant", "content": final_text}
+            conversation.append(assistant_message)
+            save_history()
+            total_tokens += len(final_text.split())
             
-        # Optional metadata chunk at the end
-        yield f"data: {json.dumps({'done': True, 'model': GROQ_LLM_MODEL})}\n\n"
+        yield f"data: {json.dumps({'done': True, 'model': req_payload['model']})}\n\n"
 
     return StreamingResponse(stream_generator(), media_type="text/event-stream")
 
@@ -598,7 +650,7 @@ def tts(payload: CommandRequest):
     if not text:
         raise HTTPException(status_code=400, detail="Empty text")
 
-    audio_bytes, media_type = synthesize_speech(text)
+    audio_bytes, media_type = synthesize_speech(text, voice_pref=payload.voice)
     if audio_bytes is None:
         raise HTTPException(status_code=500, detail="TTS synthesis failed")
 
