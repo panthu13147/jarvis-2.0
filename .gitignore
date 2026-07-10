@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.env
+api_keys/
+groq_error.log
+test_stream.py
+chroma_memory/
+.venv/
