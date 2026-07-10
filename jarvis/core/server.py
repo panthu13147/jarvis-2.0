@@ -15,7 +15,7 @@ import wave
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, List
 
 import requests
 import asyncio
@@ -26,7 +26,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 # ── Paths ─────────────────────────────────────────────────────────
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 V1_DIR = Path(os.getenv("JARVIS_V1_DIR", str(BASE_DIR.parent / "jarvis v1.0")))
 VOICE_WAV = V1_DIR / "voices" / "jarvis_voice.wav"
 
@@ -42,11 +43,12 @@ POCKET_TTS_URL = os.getenv("JARVIS_POCKET_TTS_URL", "http://127.0.0.1:8001")
 
 
 def load_groq_key() -> str | None:
-    env_key = os.getenv("GROQ_API_KEY") or os.getenv("JARVIS_GROQ_API_KEY")
+    # Look for key in environment or fallback to hardcoded path
+    env_key = os.environ.get("GROQ_API_KEY")
     if env_key:
-        return env_key.strip()
+        return env_key
+        
     candidates = [
-        V1_DIR / "api keys" / "groq api key.txt",
         BASE_DIR / "api keys" / "groq api key.txt",
     ]
     for path in candidates:
@@ -100,10 +102,27 @@ total_tokens = 0
 
 def get_system_prompt() -> str:
     now = datetime.now()
-    return SYSTEM_PROMPT.format(
+    prompt = SYSTEM_PROMPT.format(
         time=now.strftime("%I:%M %p"),
         date=now.strftime("%A, %B %d, %Y"),
     )
+    
+    # Inject real-time context
+    try:
+        from jarvis.core import tools
+        ctx = tools.get_system_context()
+        context_str = f"""
+Current System Context:
+- Active Window: {ctx.get('active_window', 'Unknown')}
+- CPU Usage: {ctx.get('cpu_percent', 0.0)}%
+- RAM Usage: {ctx.get('ram_percent', 0.0)}%
+- Clipboard Content: {ctx.get('clipboard', 'Empty')}
+"""
+        prompt += "\n" + context_str
+    except Exception as e:
+        pass
+        
+    return prompt
 
 
 # ── Sanitize LLM output ──────────────────────────────────────────
@@ -134,7 +153,7 @@ def groq_chat(user_message: str) -> tuple[str, int]:
 
     system_msg = get_system_prompt()
     try:
-        import tools
+        from jarvis.core import tools
         memories = tools.recall_memories(user_message)
         if memories:
             system_msg += "\n\nRelevant memories about the user:\n- " + "\n- ".join(memories)
@@ -144,7 +163,7 @@ def groq_chat(user_message: str) -> tuple[str, int]:
     messages = [{"role": "system", "content": system_msg}] + conversation
 
     try:
-        import tools
+        from jarvis.core import tools
         payload = {
             "model": GROQ_LLM_MODEL,
             "messages": messages,
@@ -255,11 +274,35 @@ def groq_chat(user_message: str) -> tuple[str, int]:
         return "I encountered a connection error while reaching my brain.", 0
 
 
-# ── Groq STT (Whisper) ───────────────────────────────────────────
-def groq_transcribe(audio_bytes: bytes) -> str | None:
+# ── STT (Whisper) ───────────────────────────────────────────
+def transcribe_audio(audio_bytes: bytes) -> str | None:
+    if LOCAL_WHISPER_ENABLED and whisper_model is not None:
+        try:
+            print("[JARVIS] Using local faster-whisper...")
+            # faster-whisper needs a file or a file-like object, it can't take raw bytes easily
+            # We'll save bytes to a temp file and read it
+            fd, temp_path = tempfile.mkstemp(suffix=".webm")
+            os.close(fd)
+            with open(temp_path, "wb") as f:
+                f.write(audio_bytes)
+            
+            segments, info = whisper_model.transcribe(temp_path, beam_size=5)
+            text = " ".join([segment.text for segment in segments])
+            
+            try:
+                os.remove(temp_path)
+            except:
+                pass
+            
+            return text.strip() or None
+        except Exception as e:
+            print(f"[JARVIS] Local Whisper Error: {e}, falling back to Groq...")
+            pass # Fallback to Groq
+
     if not GROQ_KEY:
         return None
     try:
+        print("[JARVIS] Using Groq Whisper API...")
         resp = requests.post(
             GROQ_STT_URL,
             headers={"Authorization": f"Bearer {GROQ_KEY}"},
@@ -393,7 +436,7 @@ app.add_middleware(
 )
 
 # Serve static files
-app.mount("/static", StaticFiles(directory=str(BASE_DIR)), name="static")
+app.mount("/static", StaticFiles(directory=str(WEB_DIR)), name="static")
 
 
 class CommandRequest(BaseModel):
@@ -404,7 +447,7 @@ class CommandRequest(BaseModel):
 
 @app.get("/", response_class=HTMLResponse)
 def index():
-    return FileResponse(str(BASE_DIR / "index.html"))
+    return FileResponse(str(WEB_DIR / "index.html"))
 
 
 @app.get("/api/health")
@@ -489,8 +532,6 @@ def command(payload: CommandRequest):
         global total_tokens
         if not GROQ_KEY:
             yield f"data: {json.dumps({'error': 'Groq API key not found.'})}\n\n"
-            return
-            
         conversation.append({"role": "user", "content": text})
         if len(conversation) > MAX_CONVERSATION:
             conversation.pop(0)
@@ -500,7 +541,7 @@ def command(payload: CommandRequest):
 
         system_msg = get_system_prompt()
         try:
-            import tools
+            from jarvis.core import tools
             memories = tools.recall_memories(text)
             if memories:
                 system_msg += "\n\nRelevant memories about the user:\n- " + "\n- ".join(memories)
@@ -520,99 +561,39 @@ def command(payload: CommandRequest):
             except Exception:
                 pass
 
+        # Check if model is local
+        is_local = "local" in payload.model.lower() or "ollama" in payload.model.lower()
+        
         req_payload = {
-            "model": payload.model,
+            "model": payload.model.replace("local-", ""),
             "messages": messages,
             "temperature": 0.7,
-            "max_tokens": 512,
-            "tools": active_tools,
-            "tool_choice": "auto",
             "stream": True
         }
         
-        resp = requests.post(
-            GROQ_LLM_URL,
-            headers={"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"},
-            json=req_payload,
-            stream=True,
-            timeout=15
-        )
-        resp.raise_for_status()
-        
-        tool_calls_buffer = {}
-        full_text = ""
-        is_tool_call = False
-        
-        for line in resp.iter_lines():
-            if not line:
-                continue
-            decoded = line.decode('utf-8')
-            if decoded.startswith("data: "):
-                data_str = decoded[6:]
-                if data_str == "[DONE]":
-                    break
-                try:
-                    chunk = json.loads(data_str)
-                    delta = chunk["choices"][0].get("delta", {})
-                except Exception:
-                    continue
-                    
-                if "tool_calls" in delta and delta["tool_calls"]:
-                    is_tool_call = True
-                    for tc in delta["tool_calls"]:
-                        idx = tc["index"]
-                        if idx not in tool_calls_buffer:
-                            tool_calls_buffer[idx] = {"id": tc.get("id", ""), "function": {"name": "", "arguments": ""}}
-                        if tc.get("id"):
-                            tool_calls_buffer[idx]["id"] = tc["id"]
-                        if tc.get("function"):
-                            if tc["function"].get("name"):
-                                tool_calls_buffer[idx]["function"]["name"] += tc["function"]["name"]
-                            if tc["function"].get("arguments"):
-                                tool_calls_buffer[idx]["function"]["arguments"] += tc["function"]["arguments"]
-                
-                if not is_tool_call and "content" in delta and delta["content"]:
-                    content = delta["content"]
-                    full_text += content
-                    yield f"data: {json.dumps({'chunk': content})}\n\n"
-                    
-        if is_tool_call:
-            assistant_message = {
-                "role": "assistant",
-                "content": "",
-                "tool_calls": [
-                    {"id": tc["id"], "type": "function", "function": tc["function"]}
-                    for tc in tool_calls_buffer.values()
-                ]
-            }
-            conversation.append(assistant_message)
-            save_history()
+        if not is_local:
+            req_payload["tools"] = active_tools
+            req_payload["tool_choice"] = "auto"
+            req_payload["max_tokens"] = 512
             
-            for tc in assistant_message["tool_calls"]:
-                func_name = tc["function"]["name"]
-                try:
-                    func_args = json.loads(tc["function"]["arguments"])
-                except Exception:
-                    func_args = {}
-                print(f"[JARVIS] Calling tool: {func_name} with {func_args}")
-                result = tools.execute_tool(func_name, func_args)
-                print(f"[JARVIS] Tool result: {result}")
-                conversation.append({
-                    "role": "tool",
-                    "content": str(result),
-                    "tool_call_id": tc["id"]
-                })
+            try:
+                resp = requests.post(
+                    GROQ_LLM_URL,
+                    headers={"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"},
+                    json=req_payload,
+                    stream=True,
+                    timeout=15
+                )
+                resp.raise_for_status()
+            except Exception as e:
+                yield f"data: {json.dumps({'error': f'Groq API error: {e}'})}\n\n"
+                return
                 
-            req_payload["messages"] = [{"role": "system", "content": get_system_prompt()}] + conversation
-            resp2 = requests.post(
-                GROQ_LLM_URL,
-                headers={"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"},
-                json=req_payload,
-                stream=True,
-                timeout=15
-            )
+            tool_calls_buffer = {}
+            full_text = ""
+            is_tool_call = False
             
-            for line in resp2.iter_lines():
+            for line in resp.iter_lines():
                 if not line:
                     continue
                 decoded = line.decode('utf-8')
@@ -626,16 +607,112 @@ def command(payload: CommandRequest):
                     except Exception:
                         continue
                         
-                    if "content" in delta and delta["content"]:
+                    if "tool_calls" in delta and delta["tool_calls"]:
+                        is_tool_call = True
+                        for tc in delta["tool_calls"]:
+                            idx = tc["index"]
+                            if idx not in tool_calls_buffer:
+                                tool_calls_buffer[idx] = {"id": tc.get("id"), "function": {"name": "", "arguments": ""}}
+                            if "function" in tc:
+                                if "name" in tc["function"]:
+                                    tool_calls_buffer[idx]["function"]["name"] += tc["function"]["name"]
+                                if "arguments" in tc["function"]:
+                                    tool_calls_buffer[idx]["function"]["arguments"] += tc["function"]["arguments"]
+                                    
+                    elif "content" in delta and delta["content"]:
                         content = delta["content"]
                         full_text += content
                         yield f"data: {json.dumps({'chunk': content})}\n\n"
+            
+            if is_tool_call:
+                # Same logic as before
+                conversation.append({
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [tc for tc in tool_calls_buffer.values()]
+                })
+                for tc in tool_calls_buffer.values():
+                    func_name = tc["function"]["name"]
+                    try:
+                        func_args = json.loads(tc["function"]["arguments"])
+                    except Exception:
+                        func_args = {}
+                    print(f"[JARVIS] Calling tool: {func_name} with {func_args}")
+                    result = tools.execute_tool(func_name, func_args)
+                    print(f"[JARVIS] Tool result: {result}")
+                    conversation.append({
+                        "role": "tool",
+                        "content": str(result),
+                        "tool_call_id": tc["id"]
+                    })
+                    
+                req_payload["messages"] = [{"role": "system", "content": get_system_prompt()}] + conversation
+                resp2 = requests.post(
+                    GROQ_LLM_URL,
+                    headers={"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"},
+                    json=req_payload,
+                    stream=True,
+                    timeout=15
+                )
+                
+                for line in resp2.iter_lines():
+                    if not line:
+                        continue
+                    decoded = line.decode('utf-8')
+                    if decoded.startswith("data: "):
+                        data_str = decoded[6:]
+                        if data_str == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(data_str)
+                            delta = chunk["choices"][0].get("delta", {})
+                        except Exception:
+                            continue
+                            
+                        if "content" in delta and delta["content"]:
+                            content = delta["content"]
+                            full_text += content
+                            yield f"data: {json.dumps({'chunk': content})}\n\n"
+                            
+            else:
+                final_text = sanitize_reply(full_text)
+                assistant_message = {"role": "assistant", "content": final_text}
+                conversation.append(assistant_message)
+                save_history()
+                total_tokens += len(final_text.split())
+                
         else:
-            final_text = sanitize_reply(full_text)
-            assistant_message = {"role": "assistant", "content": final_text}
-            conversation.append(assistant_message)
-            save_history()
-            total_tokens += len(final_text.split())
+            # OLLAMA LOCAL STREAMING
+            try:
+                print(f"[JARVIS] Using local Ollama model: {req_payload['model']}")
+                resp = requests.post(
+                    OLLAMA_CHAT_URL,
+                    json=req_payload,
+                    stream=True,
+                    timeout=15
+                )
+                resp.raise_for_status()
+                
+                full_text = ""
+                for line in resp.iter_lines():
+                    if not line:
+                        continue
+                    chunk = json.loads(line)
+                    content = chunk.get("message", {}).get("content", "")
+                    if content:
+                        full_text += content
+                        yield f"data: {json.dumps({'chunk': content})}\n\n"
+                        
+                    if chunk.get("done"):
+                        break
+                        
+                final_text = sanitize_reply(full_text)
+                assistant_message = {"role": "assistant", "content": final_text}
+                conversation.append(assistant_message)
+                save_history()
+                
+            except Exception as e:
+                yield f"data: {json.dumps({'error': f'Ollama error: {e}. Is Ollama running?'})}\n\n"
             
         yield f"data: {json.dumps({'done': True, 'model': req_payload['model']})}\n\n"
 
@@ -687,7 +764,7 @@ async def websocket_endpoint(websocket: WebSocket):
                                 with open(temp_path, "rb") as f:
                                     audio_bytes = f.read()
                                     
-                                transcript = groq_transcribe(audio_bytes)
+                                transcript = transcribe_audio(audio_bytes)
                                 
                                 # Send transcript back to client
                                 await websocket.send_text(json.dumps({
@@ -730,8 +807,21 @@ async def proactive_loop():
     while True:
         await asyncio.sleep(60) # Check every 60 seconds
         if manager.active_connections:
-            # Example: check if any active timers expired
-            pass
+            try:
+                from jarvis.core import tools
+                ctx = tools.get_system_context()
+                
+                # Proactive resource warning
+                if ctx["ram_percent"] > 90.0 or ctx["cpu_percent"] > 95.0:
+                    alert_msg = json.dumps({
+                        "type": "proactive",
+                        "text": f"Sir, I noticed system resources are critical. RAM is at {ctx['ram_percent']}% and CPU is at {ctx['cpu_percent']}%. Would you like me to close some background processes?"
+                    })
+                    await manager.broadcast(alert_msg)
+                    # Sleep longer after an alert to avoid spamming
+                    await asyncio.sleep(300) 
+            except Exception:
+                pass
 
 @app.on_event("startup")
 async def startup_event():
@@ -745,7 +835,7 @@ async def transcribe(audio: UploadFile = File(...)):
     if not audio_bytes:
         raise HTTPException(status_code=400, detail="No audio data")
 
-    text = groq_transcribe(audio_bytes)
+    text = transcribe_audio(audio_bytes)
     if text is None:
         raise HTTPException(status_code=500, detail="Transcription failed")
 

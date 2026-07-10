@@ -17,7 +17,7 @@ def create_icon_image():
 def start_server():
     print("Starting Jarvis Backend Server...")
     # Run uvicorn programmatically
-    uvicorn.run("server:app", host="127.0.0.1", port=8000, log_level="warning")
+    uvicorn.run("jarvis.core.server:app", host="127.0.0.1", port=8000, log_level="warning")
 
 def open_ui():
     webbrowser.open("http://127.0.0.1:8000")

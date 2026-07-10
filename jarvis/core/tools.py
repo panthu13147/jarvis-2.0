@@ -42,8 +42,46 @@ try:
 except ImportError:
     AudioUtilities = None
 
+try:
+    import pyperclip
+    import pygetwindow as gw
+except ImportError:
+    pyperclip = None
+    gw = None
+
 
 # ── Functions ────────────────────────────────────────────────────────
+
+def get_system_context() -> dict:
+    """Gets real-time context of the user's desktop environment for proactive awareness."""
+    ctx = {
+        "active_window": "Unknown",
+        "clipboard": "",
+        "cpu_percent": 0.0,
+        "ram_percent": 0.0
+    }
+    
+    ctx["cpu_percent"] = psutil.cpu_percent(interval=0.1)
+    ctx["ram_percent"] = psutil.virtual_memory().percent
+    
+    if gw is not None:
+        try:
+            active = gw.getActiveWindow()
+            if active and active.title:
+                ctx["active_window"] = active.title
+        except Exception:
+            pass
+            
+    if pyperclip is not None:
+        try:
+            clip = pyperclip.paste()
+            # Only keep first 500 chars to avoid prompt bloat
+            if clip and len(clip) > 0:
+                ctx["clipboard"] = clip[:500] + ("..." if len(clip) > 500 else "")
+        except Exception:
+            pass
+            
+    return ctx
 
 def get_system_stats() -> str:
     """Returns CPU, RAM, GPU usage, and top memory-heavy processes."""
