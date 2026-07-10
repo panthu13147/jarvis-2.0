@@ -16,6 +16,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List
 import ast
 import importlib
+import base64
 
 try:
     import chromadb
@@ -474,7 +475,7 @@ def set_timer(duration_seconds: int, label: str = "Timer") -> str:
 
 
 def take_screenshot() -> str:
-    """Takes a screenshot and returns a description of visible windows."""
+    """Takes a screenshot, passes it to Groq Vision API, and returns a visual description."""
     try:
         from PIL import ImageGrab
         screenshot = ImageGrab.grab()
@@ -497,9 +498,46 @@ def take_screenshot() -> str:
                     visible_windows.append(name)
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 pass
-        
         top_apps = visible_windows[:10]
+
+        # Base64 Encode
+        with open(path, "rb") as image_file:
+            base64_image = base64.b64encode(image_file.read()).decode("utf-8")
         
+        # Vision API Call
+        try:
+            api_key_path = os.path.join(os.path.dirname(__file__), "groq_key.txt")
+            if os.path.exists(api_key_path):
+                with open(api_key_path, "r") as f:
+                    api_key = f.read().strip()
+                
+                payload = {
+                    "model": "llama-3.2-11b-vision-preview",
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": "Describe exactly what you see on my screen in 2 short sentences. Pay attention to any open windows, text, or applications."},
+                                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_image}"}}
+                            ]
+                        }
+                    ],
+                    "temperature": 0.5,
+                    "max_tokens": 150
+                }
+                
+                resp = requests.post(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                    json=payload,
+                    timeout=15
+                )
+                if resp.status_code == 200:
+                    vision_text = resp.json()["choices"][0]["message"]["content"]
+                    return f"Vision Analysis: {vision_text} (Running Background apps: {', '.join(top_apps)})"
+        except Exception as e:
+            print(f"[Vision Error] {e}")
+
         return f"Screenshot saved to {path}. Running applications: {', '.join(top_apps)}. Screen resolution: {screenshot.size[0]}x{screenshot.size[1]}."
     except ImportError:
         return "Error: Pillow library is not installed. Install with: pip install Pillow"

@@ -18,7 +18,8 @@ from pathlib import Path
 from typing import Any
 
 import requests
-from fastapi import FastAPI, HTTPException, Request, UploadFile, File
+import asyncio
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -639,6 +640,67 @@ def command(payload: CommandRequest):
         yield f"data: {json.dumps({'done': True, 'model': req_payload['model']})}\n\n"
 
     return StreamingResponse(stream_generator(), media_type="text/event-stream")
+
+
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        self.active_connections.remove(websocket)
+
+    async def broadcast(self, message: str):
+        for connection in self.active_connections:
+            await connection.send_text(message)
+
+manager = ConnectionManager()
+
+@app.websocket("/api/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            try:
+                payload = json.loads(data)
+                text = payload.get("text", "")
+                model = payload.get("model", "llama3-70b-8192")
+                
+                if text:
+                    # Very simple synchronous LLM call for now (can be made async later)
+                    # To keep it simple, we'll just use the REST endpoint's stream_generator logic
+                    pass
+            except Exception as e:
+                print(f"WS Error: {e}")
+                
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+
+
+# Proactive loop
+async def proactive_loop():
+    # Send a test message shortly after startup
+    await asyncio.sleep(5)
+    if manager.active_connections:
+        test_msg = json.dumps({
+            "type": "proactive",
+            "text": "Sir, I have successfully initialized my visual cortex and proactive subsystems."
+        })
+        await manager.broadcast(test_msg)
+        
+    while True:
+        await asyncio.sleep(60) # Check every 60 seconds
+        if manager.active_connections:
+            # Example: check if any active timers expired
+            pass
+
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(proactive_loop())
 
 
 @app.post("/api/transcribe")

@@ -13,8 +13,82 @@
   const commandInput   = document.getElementById('commandInput');
   const sendBtn        = document.getElementById('sendBtn');
   const micBtn         = document.getElementById('micBtn');
-  const clearBtn       = document.getElementById('clearBtn');
-  const transcriptText = document.getElementById('transcriptText');
+  const clearBtn = document.getElementById('clearBtn');
+  const orbEl = document.getElementById('jarvis-orb');
+  const transcriptText = document.getElementById('transcript-text');
+
+  let currentMsgElement = null;
+  let sentenceBuffer = "";
+
+  // WebSocket Connection for Proactive and Reactive Streaming
+  let ws = null;
+  
+  function connectWebSocket() {
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    ws = new WebSocket(`${wsProtocol}//${window.location.host}/api/ws`);
+    
+    ws.onopen = () => {
+      console.log('WebSocket connected to Jarvis Core.');
+    };
+    
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'proactive') {
+          // Handle a spontaneous message from Jarvis
+          addMessage('jarvis', data.text);
+          if (data.audio) {
+            // If backend generates TTS and sends base64 audio
+            const byteCharacters = atob(data.audio);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            playAudioChunk(byteArray.buffer);
+          } else {
+            // fallback to client-side fetching TTS
+            ttsQueue.push(data.text);
+            processTTSQueue();
+          }
+          setOrbMode('speaking');
+        } else if (data.type === 'chunk') {
+          // Handle streaming chunk from a command
+          if (currentMsgElement) {
+            currentMsgElement.textContent += data.chunk;
+            transcriptText.textContent = currentMsgElement.textContent;
+            chatLog.scrollTop = chatLog.scrollHeight;
+            
+            sentenceBuffer += data.chunk;
+            if (sentenceBuffer.match(/[.!?\n]\s/)) {
+              ttsQueue.push(sentenceBuffer);
+              sentenceBuffer = "";
+              processTTSQueue();
+            }
+          }
+        } else if (data.type === 'done') {
+          if (data.model) metricModel.textContent = data.model;
+          if (sentenceBuffer.trim()) {
+            ttsQueue.push(sentenceBuffer);
+            processTTSQueue();
+          }
+          isProcessing = false;
+        }
+      } catch(e) {
+        console.error('WS parse error:', e);
+      }
+    };
+    
+    ws.onclose = () => {
+      console.log('WebSocket disconnected. Reconnecting in 5s...');
+      setTimeout(connectWebSocket, 5000);
+    };
+  }
+  
+  // Initialize WS
+  connectWebSocket();
+
+  // ══════════════════════════════════════════════════════════════
   const orbLabel       = document.getElementById('orbLabel');
   const modeText       = document.getElementById('modeText');
   const metricLatency  = document.getElementById('metricLatency');
@@ -480,7 +554,7 @@
     showTypingIndicator();
     transcriptText.classList.add('active');
     
-    const msgElement = addMessage('jarvis', '');
+    currentMsgElement = addMessage('jarvis', '');
 
     try {
       currentAbortController = new AbortController();
@@ -499,7 +573,7 @@
       const reader = resp.body.getReader();
       const decoder = new TextDecoder('utf-8');
       let done = false;
-      let sentenceBuffer = "";
+      sentenceBuffer = "";
       
       hideTypingIndicator();
       setOrbMode('speaking');
@@ -519,8 +593,8 @@
               try {
                 const data = JSON.parse(dataStr);
                 if (data.chunk) {
-                  msgElement.textContent += data.chunk;
-                  transcriptText.textContent = msgElement.textContent;
+                  currentMsgElement.textContent += data.chunk;
+                  transcriptText.textContent = currentMsgElement.textContent;
                   chatLog.scrollTop = chatLog.scrollHeight;
                   
                   sentenceBuffer += data.chunk;
@@ -551,7 +625,7 @@
         console.log('Command aborted.');
       } else {
         console.error('API Error:', e);
-        msgElement.textContent = 'Connection to Jarvis backend failed.';
+        if (currentMsgElement) currentMsgElement.textContent = 'Connection to Jarvis backend failed.';
       }
     } finally {
       isProcessing = false;
