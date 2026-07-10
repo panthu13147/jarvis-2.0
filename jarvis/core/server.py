@@ -49,6 +49,7 @@ def load_groq_key() -> str | None:
         return env_key
         
     candidates = [
+        V1_DIR / "api keys" / "groq api key.txt",
         BASE_DIR / "api keys" / "groq api key.txt",
     ]
     for path in candidates:
@@ -368,42 +369,25 @@ def _groq_tts_synthesize(text: str) -> bytes | None:
         return None
 
 
-def _edge_tts_synthesize(text: str) -> bytes | None:
-    """Fallback: local Edge TTS to wav bytes (excellent British voice)."""
+async def _edge_tts_synthesize_async(text: str) -> bytes | None:
+    """Fallback: local Edge TTS to mp3 bytes using native async API (much faster)."""
     try:
-        fd, mp3_path = tempfile.mkstemp(suffix=".mp3")
-        os.close(fd)
-        
-        import sys
-        # Run edge-tts to generate high-quality audio
-        subprocess.run([
-            sys.executable, "-m", "edge_tts", 
-            "--voice", "en-GB-RyanNeural", 
-            "--rate", "-0%",
-            "--pitch", "-5Hz",
-            "--text", text, 
-            "--write-media", mp3_path
-        ], check=True, creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
-        
-        with open(mp3_path, "rb") as f:
-            mp3_bytes = f.read()
-            
-        try:
-            os.remove(mp3_path)
-        except OSError:
-            pass
-            
-        # Return audio/mpeg instead of wav (frontend can play mp3/mpeg just fine)
-        return mp3_bytes
+        import edge_tts
+        communicate = edge_tts.Communicate(text, "en-GB-RyanNeural", rate="-0%", pitch="-5Hz")
+        audio_data = b""
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                audio_data += chunk["data"]
+        return audio_data
     except Exception as e:
         print(f"Edge TTS error: {e}")
         return None
 
 
-def synthesize_speech(text: str, voice_pref: str = "sapi5") -> bytes | None:
+async def synthesize_speech(text: str, voice_pref: str = "sapi5") -> tuple[bytes | None, str | None]:
     """Try TTS in order based on preference."""
-    if voice_pref == "edge":
-        result = _edge_tts_synthesize(text)
+    if voice_pref in ["edge", "sapi5"]:
+        result = await _edge_tts_synthesize_async(text)
         if result:
             return result, "audio/mpeg"
             
@@ -412,7 +396,11 @@ def synthesize_speech(text: str, voice_pref: str = "sapi5") -> bytes | None:
         result = _pocket_tts_synthesize(text)
         if result:
             return result, "audio/wav"
-    # 2. Groq cloud TTS
+    # 2. Local edge-tts fallback (RyanNeural - sounds like Jarvis)
+    result = await _edge_tts_synthesize_async(text)
+    if result:
+        return result, "audio/mpeg"
+    # 3. Groq cloud TTS (slowest, use as last resort)
     result = _groq_tts_synthesize(text)
     if result:
         return result, "audio/wav"
@@ -435,19 +423,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Serve static files
-app.mount("/static", StaticFiles(directory=str(WEB_DIR)), name="static")
-
 
 class CommandRequest(BaseModel):
     text: str
     model: str = GROQ_LLM_MODEL
     voice: str = "sapi5"
-
-
-@app.get("/", response_class=HTMLResponse)
-def index():
-    return FileResponse(str(WEB_DIR / "index.html"))
 
 
 @app.get("/api/health")
@@ -584,6 +564,25 @@ def command(payload: CommandRequest):
                     stream=True,
                     timeout=15
                 )
+                
+                # Check for 400 Bad Request due to tool hallucination
+                if resp.status_code == 400:
+                    try:
+                        error_data = resp.json()
+                        if "tool_use_failed" in str(error_data):
+                            print("[JARVIS] Groq tool error, retrying without tools.")
+                            req_payload.pop("tools", None)
+                            req_payload.pop("tool_choice", None)
+                            resp = requests.post(
+                                GROQ_LLM_URL,
+                                headers={"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"},
+                                json=req_payload,
+                                stream=True,
+                                timeout=15
+                            )
+                    except Exception:
+                        pass
+
                 resp.raise_for_status()
             except Exception as e:
                 yield f"data: {json.dumps({'error': f'Groq API error: {e}'})}\n\n"
@@ -597,6 +596,7 @@ def command(payload: CommandRequest):
                 if not line:
                     continue
                 decoded = line.decode('utf-8')
+                print(f"[JARVIS] GROQ RAW: {decoded}")
                 if decoded.startswith("data: "):
                     data_str = decoded[6:]
                     if data_str == "[DONE]":
@@ -604,7 +604,9 @@ def command(payload: CommandRequest):
                     try:
                         chunk = json.loads(data_str)
                         delta = chunk["choices"][0].get("delta", {})
-                    except Exception:
+                    except Exception as e:
+                        print(f"[JARVIS] Groq Parse Error on chunk: {data_str} - {e}")
+                        yield f"data: {json.dumps({'error': f'Groq Error: {e}'})}\n\n"
                         continue
                         
                     if "tool_calls" in delta and delta["tool_calls"]:
@@ -625,12 +627,24 @@ def command(payload: CommandRequest):
                         yield f"data: {json.dumps({'chunk': content})}\n\n"
             
             if is_tool_call:
-                # Same logic as before
-                conversation.append({
+                # Add the assistant's tool calls to conversation
+                assistant_tool_msg = {
                     "role": "assistant",
-                    "content": "",
-                    "tool_calls": [tc for tc in tool_calls_buffer.values()]
-                })
+                    "content": None,
+                    "tool_calls": []
+                }
+                for tc in tool_calls_buffer.values():
+                    assistant_tool_msg["tool_calls"].append({
+                        "id": tc["id"],
+                        "type": "function",
+                        "function": {
+                            "name": tc["function"]["name"],
+                            "arguments": tc["function"]["arguments"]
+                        }
+                    })
+                conversation.append(assistant_tool_msg)
+                
+                # Execute tools
                 for tc in tool_calls_buffer.values():
                     func_name = tc["function"]["name"]
                     try:
@@ -647,13 +661,21 @@ def command(payload: CommandRequest):
                     })
                     
                 req_payload["messages"] = [{"role": "system", "content": get_system_prompt()}] + conversation
-                resp2 = requests.post(
-                    GROQ_LLM_URL,
-                    headers={"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"},
-                    json=req_payload,
-                    stream=True,
-                    timeout=15
-                )
+                req_payload.pop("tools", None)
+                req_payload.pop("tool_choice", None)
+                
+                try:
+                    resp2 = requests.post(
+                        GROQ_LLM_URL,
+                        headers={"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"},
+                        json=req_payload,
+                        stream=True,
+                        timeout=15
+                    )
+                    resp2.raise_for_status()
+                except Exception as e:
+                    yield f"data: {json.dumps({'error': f'Groq follow-up error: {e}'})}\n\n"
+                    return
                 
                 for line in resp2.iter_lines():
                     if not line:
@@ -673,6 +695,13 @@ def command(payload: CommandRequest):
                             content = delta["content"]
                             full_text += content
                             yield f"data: {json.dumps({'chunk': content})}\n\n"
+                            
+                # Save the final text after tool execution
+                final_text = sanitize_reply(full_text)
+                assistant_message = {"role": "assistant", "content": final_text}
+                conversation.append(assistant_message)
+                save_history()
+                total_tokens += len(final_text.split())
                             
             else:
                 final_text = sanitize_reply(full_text)
@@ -843,14 +872,17 @@ async def transcribe(audio: UploadFile = File(...)):
 
 
 @app.post("/api/tts")
-def tts(payload: CommandRequest):
+async def tts(payload: CommandRequest):
     """Synthesize speech from text, return WAV or MP3 audio."""
     text = payload.text.strip()
     if not text:
         raise HTTPException(status_code=400, detail="Empty text")
 
-    audio_bytes, media_type = synthesize_speech(text, voice_pref=payload.voice)
+    audio_bytes, media_type = await synthesize_speech(text, voice_pref=payload.voice)
     if audio_bytes is None:
         raise HTTPException(status_code=500, detail="TTS synthesis failed")
 
     return Response(content=audio_bytes, media_type=media_type)
+
+# Serve static files (mounted at root last to avoid shadowing API routes)
+app.mount("/", StaticFiles(directory=str(WEB_DIR), html=True), name="web")

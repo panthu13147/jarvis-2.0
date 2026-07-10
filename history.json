@@ -1,0 +1,139 @@
+[
+  {
+    "id": "20260710_231656",
+    "date": "2026-07-10 23:17",
+    "preview": "Say hello world....",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Say hello world."
+      },
+      {
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "id": "e9wstfa99",
+            "type": "function",
+            "function": {
+              "name": "say_hello_dynamic",
+              "arguments": "{\"name\":\"world\"}"
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "content": "Error executing dynamic tool 'say_hello_dynamic': No module named 'dynamic_tools'",
+        "tool_call_id": "e9wstfa99"
+      },
+      {
+        "role": "assistant",
+        "content": "It seems I don't have a built-in tool for a simple greeting. Let me create one for you. I'll use the `create_tool` function to write a Python script that accomplishes this task. Once it's ready, I'll be happy to assist you further, sir."
+      }
+    ]
+  },
+  {
+    "id": "20260710_231526",
+    "date": "2026-07-10 23:15",
+    "preview": "Say hello world....",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Say hello world."
+      },
+      {
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [
+          {
+            "id": "4d2sxg5sc",
+            "function": {
+              "name": "say_hello_dynamic",
+              "arguments": "{\"name\":\"World\"}"
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "content": "Error executing dynamic tool 'say_hello_dynamic': No module named 'dynamic_tools'",
+        "tool_call_id": "4d2sxg5sc"
+      },
+      {
+        "role": "assistant",
+        "content": ""
+      }
+    ]
+  },
+  {
+    "id": "20260710_231453",
+    "date": "2026-07-10 23:15",
+    "preview": "Say hello world....",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Say hello world."
+      },
+      {
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [
+          {
+            "id": "hdft9awe8",
+            "function": {
+              "name": "say_hello_dynamic",
+              "arguments": "{\"name\":\"World\"}"
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "content": "Error executing dynamic tool 'say_hello_dynamic': No module named 'dynamic_tools'",
+        "tool_call_id": "hdft9awe8"
+      },
+      {
+        "role": "assistant",
+        "content": ""
+      }
+    ]
+  },
+  {
+    "id": "20260710_231116",
+    "date": "2026-07-10 23:13",
+    "preview": "Say hello world....",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Say hello world."
+      },
+      {
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [
+          {
+            "id": "ffas24fje",
+            "function": {
+              "name": "say_hello_dynamic",
+              "arguments": "{\"name\":\"World\"}"
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "content": "Error executing dynamic tool 'say_hello_dynamic': No module named 'dynamic_tools'",
+        "tool_call_id": "ffas24fje"
+      },
+      {
+        "role": "assistant",
+        "content": ""
+      },
+      {
+        "role": "user",
+        "content": "Say hello world."
+      }
+    ]
+  }
+]
