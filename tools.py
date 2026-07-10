@@ -353,6 +353,61 @@ def get_weather(location: str) -> str:
         return f"Weather fetch failed: {e}"
 
 
+def get_news(topic: str = "") -> str:
+    """Fetches top news headlines from Google News RSS."""
+    try:
+        import urllib.request
+        import urllib.parse
+        import xml.etree.ElementTree as ET
+        
+        url = "https://news.google.com/rss"
+        if topic:
+            url = f"https://news.google.com/rss/search?q={urllib.parse.quote(topic)}"
+            
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 JARVIS/2.0'})
+        with urllib.request.urlopen(req, timeout=8) as response:
+            xml_data = response.read()
+            
+        root = ET.fromstring(xml_data)
+        items = root.findall('.//item')[:5]
+        
+        if not items:
+            return f"No news found for '{topic}'."
+            
+        news_list = []
+        for i, item in enumerate(items, 1):
+            title = item.find('title').text
+            news_list.append(f"{i}. {title}")
+            
+        header = f"Top Headlines{' for ' + topic if topic else ''}:\n"
+        return header + "\n".join(news_list)
+    except Exception as e:
+        return f"Failed to fetch news: {e}"
+
+
+def control_spotify(action: str) -> str:
+    """Controls media playback (Spotify, etc) via Windows media keys."""
+    try:
+        import pyautogui
+        act = action.lower()
+        if act in ['play', 'pause', 'toggle', 'resume']:
+            pyautogui.press('playpause')
+            return "Toggled play/pause."
+        elif act in ['next', 'skip', 'forward']:
+            pyautogui.press('nexttrack')
+            return "Skipped to next track."
+        elif act in ['prev', 'previous', 'back']:
+            pyautogui.press('prevtrack')
+            return "Went to previous track."
+        else:
+            return f"Unknown media action: {action}"
+    except ImportError:
+        return "pyautogui is required for media controls."
+    except Exception as e:
+        return f"Media control failed: {e}"
+
+
+
 # Active timers storage
 _active_timers: Dict[str, dict] = {}
 
@@ -673,6 +728,39 @@ GROQ_TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "get_news",
+            "description": "Fetches the top news headlines. Optionally takes a topic to search for specific news.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "topic": {
+                        "type": "string",
+                        "description": "The topic or keyword to search for (e.g. 'technology', 'AI', 'finance'). Leave empty for general top headlines."
+                    }
+                }
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "control_spotify",
+            "description": "Controls media playback (like Spotify or YouTube) via Windows media keys. Can play, pause, or skip tracks.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "description": "The media action to perform. Valid options: 'play', 'pause', 'toggle', 'next', 'prev'."
+                    }
+                },
+                "required": ["action"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "set_timer",
             "description": "Sets a countdown timer that will fire a desktop notification when it completes. Use when the user says 'set a timer', 'remind me in X minutes', 'wake me up in X', etc.",
             "parameters": {
@@ -751,6 +839,10 @@ def execute_tool(name: str, args: Dict[str, Any]) -> str:
         return web_search(args.get("query", ""))
     elif name == "get_weather":
         return get_weather(args.get("location", ""))
+    elif name == "get_news":
+        return get_news(args.get("topic", ""))
+    elif name == "control_spotify":
+        return control_spotify(args.get("action", ""))
     elif name == "set_timer":
         return set_timer(args.get("duration_seconds", 60), args.get("label", "Timer"))
     elif name == "take_screenshot":
