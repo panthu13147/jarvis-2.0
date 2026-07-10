@@ -14,6 +14,8 @@ import tempfile
 import requests
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
+import ast
+import importlib
 
 try:
     import chromadb
@@ -536,6 +538,52 @@ def set_clipboard(text: str) -> str:
         return f"Error setting clipboard: {e}"
 
 
+def create_tool(name: str, description: str, python_code: str, schema_json: str) -> str:
+    """Dynamically creates a new python function and registers it as a tool."""
+    try:
+        # 1. Validate python syntax
+        try:
+            ast.parse(python_code)
+        except SyntaxError as e:
+            return f"SyntaxError in python code: {e.msg} at line {e.lineno}"
+
+        # 2. Validate JSON schema
+        try:
+            schema = json.loads(schema_json)
+            if "type" not in schema or schema["type"] != "function":
+                return "Error: Schema must be a valid OpenAI/Groq function tool schema."
+        except json.JSONDecodeError as e:
+            return f"Error parsing schema_json: {e.msg}"
+
+        # 3. Append code to dynamic_tools.py
+        dynamic_py_path = os.path.join(os.path.dirname(__file__), "dynamic_tools.py")
+        with open(dynamic_py_path, "a", encoding="utf-8") as f:
+            f.write(f"\n\n# Dynamic Tool: {name}\n")
+            f.write(python_code)
+            f.write("\n")
+
+        # 4. Append schema to dynamic_schemas.json
+        dynamic_json_path = os.path.join(os.path.dirname(__file__), "dynamic_schemas.json")
+        schemas = []
+        if os.path.exists(dynamic_json_path):
+            try:
+                with open(dynamic_json_path, "r", encoding="utf-8") as f:
+                    schemas = json.load(f)
+            except Exception:
+                pass
+        
+        # Remove old schema with same name if it exists (update)
+        schemas = [s for s in schemas if s.get("function", {}).get("name") != name]
+        schemas.append(schema)
+
+        with open(dynamic_json_path, "w", encoding="utf-8") as f:
+            json.dump(schemas, f, indent=2)
+
+        return f"Tool '{name}' created and registered successfully! You can now use it."
+    except Exception as e:
+        return f"Failed to create tool: {e}"
+
+
 # ── Tool Definitions for Groq ────────────────────────────────────────
 
 GROQ_TOOLS = [
@@ -811,6 +859,35 @@ GROQ_TOOLS = [
                 "required": ["text"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_tool",
+            "description": "Writes and registers a new Python function as a tool. Use this when the user asks you to do something and you don't already have a tool for it.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "The name of the new function (e.g., 'convert_image')."
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "A short description of what the function does."
+                    },
+                    "python_code": {
+                        "type": "string",
+                        "description": "The full, executable Python code for the function. Include necessary imports."
+                    },
+                    "schema_json": {
+                        "type": "string",
+                        "description": "The OpenAI-style JSON schema describing the function and its parameters as a string."
+                    }
+                },
+                "required": ["name", "description", "python_code", "schema_json"]
+            }
+        }
     }
 ]
 
@@ -851,5 +928,22 @@ def execute_tool(name: str, args: Dict[str, Any]) -> str:
         return get_clipboard()
     elif name == "set_clipboard":
         return set_clipboard(args.get("text", ""))
+    elif name == "create_tool":
+        return create_tool(
+            name=args.get("name", ""),
+            description=args.get("description", ""),
+            python_code=args.get("python_code", ""),
+            schema_json=args.get("schema_json", "")
+        )
     else:
+        # Try loading dynamically from dynamic_tools.py
+        try:
+            import dynamic_tools
+            importlib.reload(dynamic_tools)
+            if hasattr(dynamic_tools, name):
+                func = getattr(dynamic_tools, name)
+                return str(func(**args))
+        except Exception as e:
+            return f"Error executing dynamic tool '{name}': {e}"
+            
         return f"Error: Tool '{name}' not found."

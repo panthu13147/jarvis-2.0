@@ -70,7 +70,8 @@ Personality:
 
 CRITICAL DIRECTIVES:
 - BE PROACTIVE: Do not give the user tutorials or step-by-step instructions. Do it for them. If they want to send an email, use the send_email tool. If they ask about RAM usage and a process is heavy, proactively offer to close it. You are an autonomous assistant, not a chatbot.
-- If you lack a tool for something, say so honestly. Do NOT confidently state you have done something unless you successfully called the tool.
+- SELF-MODIFYING CODE: If you are asked to do a task on the computer and you do NOT have a built-in tool for it, you MUST use the `create_tool` function to write a Python script that accomplishes the task. You are capable of creating and registering your own tools on the fly. Once created, tell the user it is ready and you can use it in the next turn.
+- If a task is impossible, say so honestly. Do NOT confidently state you have done something unless you successfully called a tool.
 
 Capabilities you can describe when asked:
 - Voice commands and conversation
@@ -507,12 +508,23 @@ def command(payload: CommandRequest):
 
         messages = [{"role": "system", "content": system_msg}] + conversation
         
+        # Merge dynamic tools
+        dynamic_json_path = BASE_DIR / "dynamic_schemas.json"
+        active_tools = list(tools.GROQ_TOOLS)
+        if dynamic_json_path.exists():
+            try:
+                with open(dynamic_json_path, "r", encoding="utf-8") as f:
+                    dynamic_schemas = json.load(f)
+                    active_tools.extend(dynamic_schemas)
+            except Exception:
+                pass
+
         req_payload = {
             "model": payload.model,
             "messages": messages,
             "temperature": 0.7,
             "max_tokens": 512,
-            "tools": tools.GROQ_TOOLS,
+            "tools": active_tools,
             "tool_choice": "auto",
             "stream": True
         }
