@@ -52,6 +52,14 @@
             processTTSQueue();
           }
           setOrbMode('speaking');
+        } else if (data.type === 'transcript') {
+          // Handle the completed transcript from the audio stream
+          if (data.text) {
+             processCommand(data.text, true);
+          } else {
+             transcriptText.textContent = 'Say something or type a command...';
+             setOrbMode('listening');
+          }
         } else if (data.type === 'chunk') {
           // Handle streaming chunk from a command
           if (currentMsgElement) {
@@ -346,7 +354,8 @@
         
         if (!isRecording && mediaRecorder && mediaRecorder.state === 'inactive') {
             audioChunks = [];
-            mediaRecorder.start();
+            // Start recording with a timeslice of 250ms to stream chunks
+            mediaRecorder.start(250);
             isRecording = true;
         }
       }
@@ -389,41 +398,32 @@
       });
       audioChunks = [];
 
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunks.push(e.data);
+      mediaRecorder.ondataavailable = async (e) => {
+        if (e.data.size > 0) {
+          audioChunks.push(e.data);
+          // Stream raw binary chunks over WebSocket if open
+          if (ws && ws.readyState === WebSocket.OPEN) {
+              const arrayBuffer = await e.data.arrayBuffer();
+              ws.send(arrayBuffer);
+          }
+        }
       };
 
       mediaRecorder.onstop = async () => {
         isRecording = false;
         if (audioChunks.length === 0 || !isMicActive) return;
-        const blob = new Blob(audioChunks, { type: 'audio/webm' });
         audioChunks = [];
 
         // Don't send if we were just interrupted
         if (isSpeaking) return; 
 
         setOrbMode('thinking');
-        transcriptText.textContent = 'Transcribing...';
+        transcriptText.textContent = 'Transcribing stream...';
         transcriptText.classList.add('active');
 
-        const formData = new FormData();
-        formData.append('audio', blob, 'recording.webm');
-
-        try {
-          const resp = await fetch(`${API_BASE}/api/transcribe`, {
-            method: 'POST',
-            body: formData,
-          });
-          const data = await resp.json();
-          if (data.text) {
-            processCommand(data.text, true);
-          } else {
-            transcriptText.textContent = 'Say something or type a command...';
-            setOrbMode('listening');
-          }
-        } catch (e) {
-          transcriptText.textContent = 'Transcription failed. Check server.';
-          setOrbMode('listening');
+        // Notify backend that stream is complete
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: "stream_end" }));
         }
       };
 

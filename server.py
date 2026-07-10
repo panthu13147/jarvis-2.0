@@ -662,22 +662,57 @@ manager = ConnectionManager()
 @app.websocket("/api/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
+    audio_buffer = bytearray()
+    
     try:
         while True:
-            data = await websocket.receive_text()
-            try:
-                payload = json.loads(data)
-                text = payload.get("text", "")
-                model = payload.get("model", "llama3-70b-8192")
-                
-                if text:
-                    # Very simple synchronous LLM call for now (can be made async later)
-                    # To keep it simple, we'll just use the REST endpoint's stream_generator logic
-                    pass
-            except Exception as e:
-                print(f"WS Error: {e}")
+            message = await websocket.receive()
+            
+            if "text" in message:
+                try:
+                    payload = json.loads(message["text"])
+                    msg_type = payload.get("type", "")
+                    
+                    if msg_type == "stream_end":
+                        # Process buffered audio
+                        if len(audio_buffer) > 0:
+                            # Save to a temp webm file and send to transcribe
+                            try:
+                                fd, temp_path = tempfile.mkstemp(suffix=".webm")
+                                os.close(fd)
+                                with open(temp_path, "wb") as f:
+                                    f.write(audio_buffer)
+                                
+                                # Read back for transcription
+                                with open(temp_path, "rb") as f:
+                                    audio_bytes = f.read()
+                                    
+                                transcript = groq_transcribe(audio_bytes)
+                                
+                                # Send transcript back to client
+                                await websocket.send_text(json.dumps({
+                                    "type": "transcript",
+                                    "text": transcript
+                                }))
+                                
+                                os.remove(temp_path)
+                            except Exception as e:
+                                print(f"Audio STT processing error: {e}")
+                                
+                            audio_buffer.clear()
+                            
+                    elif msg_type == "command":
+                        # Future: route command through WebSocket directly
+                        pass
+                except Exception as e:
+                    print(f"WS Text Error: {e}")
+                    
+            elif "bytes" in message:
+                # Append binary audio chunk to buffer
+                audio_buffer.extend(message["bytes"])
                 
     except WebSocketDisconnect:
+        manager.disconnect(websocket)
         manager.disconnect(websocket)
 
 
