@@ -4,87 +4,81 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>JARVIS AI v2.0</title>
-  <meta name="description" content="JARVIS AI — Advanced voice assistant interface with holographic orb visualization" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <meta name="description" content="JARVIS AI — Premium voice assistant interface" />
+  <!-- Modern Typography -->
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="scanlines"></div>
+  <!-- Ambient Background -->
+  <div class="ambient-glow"></div>
   <canvas id="particleCanvas"></canvas>
 
-  <div class="app boot-fade" id="app">
-    <!-- Left: Orb + Status -->
-    <section class="orb-section">
-      <header class="top-bar boot-slide-down">
-        <div class="logo">
-          <span class="logo-icon">&#x2B22;</span>
-          <span class="logo-text">JARVIS</span>
-          <span class="logo-version">v2.0</span>
-        </div>
-        <div class="status-pills">
-          <div class="pill online" id="pillBrain"><span class="dot"></span> Brain Online</div>
-          <div class="pill" id="pillVoice"><span class="dot"></span> Voice Ready</div>
-          <div class="pill" id="pillMode"><span class="dot"></span> <span id="modeText">Idle</span></div>
-        </div>
-      </header>
+  <!-- Central Holographic Orb -->
+  <div class="orb-layer boot-scale" id="orbContainer">
+    <canvas id="orbCanvas" width="800" height="800"></canvas>
+    <div class="orb-state-ring"></div>
+    <div class="orb-label" id="orbLabel">STANDBY</div>
+  </div>
 
-      <div class="orb-container boot-scale" id="orbContainer">
-        <canvas id="orbCanvas" width="600" height="600"></canvas>
-        <div class="orb-label" id="orbLabel">STANDBY</div>
+  <!-- UI Overlay -->
+  <div class="ui-layer boot-fade" id="app">
+    
+    <!-- Top Dashboard Header -->
+    <header class="glass-panel top-bar boot-slide-down">
+      <div class="logo">
+        <span class="logo-icon">&#x2B22;</span>
+        <span class="logo-text">JARVIS</span>
+        <span class="logo-version">MK. II</span>
       </div>
-
-      <div class="transcript-bar" id="transcriptBar">
-        <div class="transcript-label">LIVE TRANSCRIPT</div>
-        <div class="transcript-text" id="transcriptText">Say something or type a command...</div>
+      <div class="status-pills">
+        <div class="pill online" id="pillBrain"><span class="dot"></span> Brain Core</div>
+        <div class="pill" id="pillVoice"><span class="dot"></span> Voice Sync</div>
+        <div class="pill" id="pillMode"><span class="dot"></span> <span id="modeText">Idle</span></div>
       </div>
+    </header>
 
-      <div class="metrics-row boot-slide-up">
+    <!-- Floating Metrics Widget -->
+    <aside class="glass-panel metrics-panel boot-slide-left">
+      <h3 class="panel-title">SYSTEM DIAGNOSTICS</h3>
+      <div class="metric-grid">
         <div class="metric">
           <span class="metric-label">LATENCY</span>
-          <span class="metric-value" id="metricLatency">--ms</span>
+          <span class="metric-value" id="metricLatency">--</span>
+          <span class="metric-unit">ms</span>
         </div>
         <div class="metric">
           <span class="metric-label">MODEL</span>
-          <span class="metric-value" id="metricModel">Groq LLaMA 3.1</span>
-        </div>
-        <div class="metric">
-          <span class="metric-label">UPTIME</span>
-          <span class="metric-value" id="metricUptime">0:00</span>
+          <span class="metric-value" id="metricModel">LLaMA 3</span>
+          <span class="metric-unit">70B</span>
         </div>
         <div class="metric">
           <span class="metric-label">TOKENS</span>
           <span class="metric-value" id="metricTokens">0</span>
+          <span class="metric-unit">ctx</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">UPTIME</span>
+          <span class="metric-value" id="metricUptime">0:00</span>
+          <span class="metric-unit"></span>
         </div>
       </div>
-    </section>
+    </aside>
 
-    <!-- Right: Chat + Controls -->
-    <section class="chat-section boot-slide-left">
-      <div class="history-sidebar" id="historySidebar">
-        <div class="history-header">
-          <h3>Past Sessions</h3>
-          <button class="icon-btn" id="closeHistoryBtn">&#x2715;</button>
-        </div>
-        <div class="history-list" id="historyList">
-          <!-- Populated by JS -->
-        </div>
-      </div>
+    <!-- Bottom Center Transcript (Subtitles) -->
+    <div class="transcript-wrapper boot-slide-up" id="transcriptBar">
+      <div class="transcript-text" id="transcriptText">Awaiting command protocol...</div>
+    </div>
+
+    <!-- Main Chat/Command Interface -->
+    <main class="glass-panel chat-panel boot-slide-right">
       <div class="chat-header">
-        <h2>Command Center</h2>
+        <h2 class="panel-title">COMMAND TERMINAL</h2>
         <div class="chat-actions">
           <button class="icon-btn" id="historyBtn" title="History">&#9776;</button>
           <button class="icon-btn" id="settingsBtn" title="Settings">&#x2699;</button>
-          <button class="icon-btn" id="clearBtn" title="Clear chat">&#x2715;</button>
+          <button class="icon-btn" id="clearBtn" title="Clear terminal">&#x2715;</button>
         </div>
-      </div>
-
-      <div class="suggestions" id="suggestions">
-      <button class="suggestion-chip">What's the weather?</button>
-        <button class="suggestion-chip">Search for AI news</button>
-        <button class="suggestion-chip">Set a 5 min timer</button>
-        <button class="suggestion-chip">System status</button>
-        <button class="suggestion-chip">What's in my clipboard?</button>
-        <button class="suggestion-chip">Take a screenshot</button>
       </div>
 
       <div class="chat-log" id="chatLog">
@@ -92,17 +86,23 @@
           <div class="message-avatar">J</div>
           <div class="message-body">
             <div class="message-name">JARVIS</div>
-            <div class="message-text">Systems initialized. All modules operational. How may I assist you?</div>
+            <div class="message-text">Systems fully initialized. All modules operational. How may I assist you, sir?</div>
             <div class="message-time">Just now</div>
           </div>
         </div>
       </div>
 
+      <div class="suggestions" id="suggestions">
+        <button class="suggestion-chip">System status</button>
+        <button class="suggestion-chip">Weather report</button>
+        <button class="suggestion-chip">Take screenshot</button>
+      </div>
+
       <div class="composer">
         <div class="input-wrapper">
-          <textarea id="commandInput" placeholder="Type a command..." rows="1"></textarea>
+          <textarea id="commandInput" placeholder="Input directive..." rows="1"></textarea>
           <div class="composer-actions">
-            <button class="mic-btn" id="micBtn" title="Toggle microphone">
+            <button class="icon-btn mic-btn" id="micBtn" title="Toggle microphone">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
                 <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
@@ -110,7 +110,7 @@
                 <line x1="8" y1="23" x2="16" y2="23"/>
               </svg>
             </button>
-            <button class="send-btn" id="sendBtn" title="Send command">
+            <button class="icon-btn send-btn" id="sendBtn" title="Execute">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="22" y1="2" x2="11" y2="13"/>
                 <polygon points="22 2 15 22 11 13 2 9 22 2"/>
@@ -119,46 +119,46 @@
           </div>
         </div>
       </div>
-    </section>
+    </main>
 
-    <!-- Settings Modal -->
-    <div class="modal-overlay" id="settingsModal">
-      <div class="modal-content boot-scale">
-        <div class="modal-header">
-          <h2>System Preferences</h2>
-          <button class="icon-btn close-modal" id="closeSettingsBtn">&#x2715;</button>
+  </div>
+
+  <!-- History & Settings Overlay (Shared) -->
+  <div class="modal-overlay" id="settingsModal">
+    <div class="glass-panel modal-content boot-scale">
+      <div class="modal-header">
+        <h2 class="panel-title">SYSTEM PREFERENCES</h2>
+        <button class="icon-btn close-modal" id="closeSettingsBtn">&#x2715;</button>
+      </div>
+      <div class="modal-body">
+        <div class="setting-group">
+          <label>LLM CORE</label>
+          <select id="modelSelect" class="glass-select">
+            <option value="llama-3.3-70b-versatile">LLaMA 3.3 70B (Fast, Groq)</option>
+            <option value="mixtral-8x7b-32768">Mixtral 8x7B (Creative, Groq)</option>
+            <option value="local-llama3">Local Llama 3 (Offline, Ollama)</option>
+          </select>
         </div>
-        <div class="modal-body">
-          <div class="setting-group">
-            <label>LLM Model</label>
-            <select id="modelSelect">
-              <option value="llama-3.3-70b-versatile">LLaMA 3.3 70B (Fast, Groq)</option>
-              <option value="mixtral-8x7b-32768">Mixtral 8x7B (Creative, Groq)</option>
-              <option value="local-llama3">Local Llama 3 (Offline, Ollama)</option>
-            </select>
-          </div>
-          <div class="setting-group">
-            <label>TTS Engine</label>
-            <select id="voiceSelect">
-              <option value="sapi5">Windows SAPI5 (Fast, Offline)</option>
-              <option value="edge">Edge TTS (High Quality, Online)</option>
-            </select>
-          </div>
-          <div class="setting-group">
-            <label>Visual Theme</label>
-            <select id="themeSelect">
-              <option value="iron-man">Iron Man (Cyan/Blue)</option>
-              <option value="ultron">Ultron (Red/Orange)</option>
-              <option value="vision">Vision (Green/Yellow)</option>
-            </select>
-          </div>
+        <div class="setting-group">
+          <label>VOCAL SYNTHESIS</label>
+          <select id="voiceSelect" class="glass-select">
+            <option value="sapi5">Windows SAPI5 (Fast, Offline)</option>
+            <option value="edge">Edge TTS (High Quality, Online)</option>
+          </select>
         </div>
-        <div class="modal-footer">
-          <button class="primary-btn" id="saveSettingsBtn">Save Configuration</button>
+        <div class="setting-group">
+          <label>VISUAL THEME</label>
+          <select id="themeSelect" class="glass-select">
+            <option value="iron-man">MK II (Cyan)</option>
+            <option value="ultron">Ultron (Crimson)</option>
+            <option value="vision">Vision (Emerald)</option>
+          </select>
         </div>
       </div>
+      <div class="modal-footer">
+        <button class="glass-btn primary-btn" id="saveSettingsBtn">SAVE CONFIGURATION</button>
+      </div>
     </div>
-
   </div>
 
   <script src="orb.js"></script>

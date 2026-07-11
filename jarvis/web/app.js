@@ -14,8 +14,7 @@
   const sendBtn        = document.getElementById('sendBtn');
   const micBtn         = document.getElementById('micBtn');
   const clearBtn = document.getElementById('clearBtn');
-  const orbEl = document.getElementById('jarvis-orb');
-  const transcriptText = document.getElementById('transcript-text');
+  const transcriptText = document.getElementById('transcriptText');
 
   let currentMsgElement = null;
   let sentenceBuffer = "";
