@@ -26,9 +26,19 @@ def on_quit(icon, item):
     icon.stop()
     sys.exit(0)
 
+import requests
+
 def trigger_jarvis():
-    # When global hotkey is pressed, open or focus the UI
-    open_ui()
+    # When global hotkey is pressed, ping the server to trigger websocket wakeup
+    try:
+        resp = requests.post("http://127.0.0.1:8000/api/trigger", timeout=2)
+        data = resp.json()
+        if data.get("active_clients", 0) == 0:
+            # If no browser is currently connected, open a new one
+            open_ui()
+    except Exception:
+        # If server is down or error, fallback
+        open_ui()
 
 def main():
     # 1. Start FastAPI server in a daemon thread

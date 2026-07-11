@@ -80,6 +80,11 @@
             processTTSQueue();
           }
           isProcessing = false;
+        } else if (data.type === 'wakeup') {
+          // Triggered by global hotkey
+          if (!isRecording) {
+            toggleMic();
+          }
         }
       } catch(e) {
         console.error('WS parse error:', e);

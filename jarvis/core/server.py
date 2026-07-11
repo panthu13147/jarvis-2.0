@@ -765,6 +765,12 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
+@app.post("/api/trigger")
+async def trigger_wakeup():
+    if manager.active_connections:
+        await manager.broadcast(json.dumps({"type": "wakeup"}))
+    return {"status": "ok", "active_clients": len(manager.active_connections)}
+
 @app.websocket("/api/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
