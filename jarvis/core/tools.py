@@ -512,8 +512,8 @@ def set_timer(duration_seconds: int, label: str = "Timer") -> str:
     return f"Timer '{label}' set for {dur_str}. You'll be notified when it's done."
 
 
-def take_screenshot() -> str:
-    """Takes a screenshot, passes it to Groq Vision API, and returns a visual description."""
+def take_screenshot(question: str = "Describe exactly what you see on my screen in 2 short sentences. Pay attention to any open windows, text, or applications.") -> str:
+    """Takes a screenshot, passes it to Groq Vision API, and returns a visual description based on the question."""
     try:
         from PIL import ImageGrab
         screenshot = ImageGrab.grab()
@@ -544,39 +544,54 @@ def take_screenshot() -> str:
         
         # Vision API Call
         try:
-            api_key_path = os.path.join(os.path.dirname(__file__), "groq_key.txt")
-            if os.path.exists(api_key_path):
-                with open(api_key_path, "r") as f:
-                    api_key = f.read().strip()
-                
+            # Replicate key loading logic to avoid circular import
+            env_key = os.environ.get("GROQ_API_KEY")
+            api_key = env_key
+            if not api_key:
+                base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+                candidates = [
+                    os.path.join(os.path.dirname(base_dir), "jarvis v1.0", "api keys", "groq api key.txt"),
+                    os.path.join(base_dir, "api keys", "groq api key.txt"),
+                ]
+                for p in candidates:
+                    try:
+                        with open(p, "r", encoding="utf-8") as f:
+                            api_key = f.read().strip().splitlines()[0].strip()
+                            break
+                    except OSError:
+                        pass
+
+            if api_key:
                 payload = {
                     "model": "llama-3.2-11b-vision-preview",
                     "messages": [
                         {
                             "role": "user",
                             "content": [
-                                {"type": "text", "text": "Describe exactly what you see on my screen in 2 short sentences. Pay attention to any open windows, text, or applications."},
+                                {"type": "text", "text": question},
                                 {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_image}"}}
                             ]
                         }
                     ],
                     "temperature": 0.5,
-                    "max_tokens": 150
+                    "max_tokens": 512
                 }
                 
                 resp = requests.post(
                     "https://api.groq.com/openai/v1/chat/completions",
                     headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
                     json=payload,
-                    timeout=15
+                    timeout=20
                 )
                 if resp.status_code == 200:
                     vision_text = resp.json()["choices"][0]["message"]["content"]
-                    return f"Vision Analysis: {vision_text} (Running Background apps: {', '.join(top_apps)})"
+                    return f"Vision Analysis Output: {vision_text} (Context: Running apps: {', '.join(top_apps)})"
+                else:
+                    return f"Vision API error: {resp.text}"
+            else:
+                return f"Screenshot saved to {path}, but Vision API key not found. Running apps: {', '.join(top_apps)}."
         except Exception as e:
-            print(f"[Vision Error] {e}")
-
-        return f"Screenshot saved to {path}. Running applications: {', '.join(top_apps)}. Screen resolution: {screenshot.size[0]}x{screenshot.size[1]}."
+            return f"Screenshot saved, but Vision analysis failed: {e}"
     except ImportError:
         return "Error: Pillow library is not installed. Install with: pip install Pillow"
     except Exception as e:
@@ -907,8 +922,16 @@ GROQ_TOOLS = [
         "type": "function",
         "function": {
             "name": "take_screenshot",
-            "description": "Takes a screenshot of the current screen and reports the visible running applications and screen resolution.",
-            "parameters": {"type": "object", "properties": {}}
+            "description": "Takes a screenshot of the current screen and asks a Vision AI to describe it. Pass a specific question if you are looking for something particular.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "question": {
+                        "type": "string",
+                        "description": "The specific question to ask about the screen. Defaults to a general description."
+                    }
+                }
+            }
         }
     },
     {
@@ -999,6 +1022,8 @@ def execute_tool(name: str, args: Dict[str, Any]) -> str:
     elif name == "set_timer":
         return set_timer(args.get("duration_seconds", 60), args.get("label", "Timer"))
     elif name == "take_screenshot":
+        if "question" in args:
+            return take_screenshot(args["question"])
         return take_screenshot()
     elif name == "get_clipboard":
         return get_clipboard()
@@ -1011,6 +1036,12 @@ def execute_tool(name: str, args: Dict[str, Any]) -> str:
             python_code=args.get("python_code", ""),
             schema_json=args.get("schema_json", "")
         )
+    elif name == "mouse_click":
+        return mouse_click(args.get("x"), args.get("y"), args.get("button", "left"), args.get("double", False))
+    elif name == "keyboard_type":
+        return keyboard_type(args.get("text", ""), args.get("interval", 0.0))
+    elif name == "keyboard_press":
+        return keyboard_press(args.get("keys", ""))
     else:
         # Try loading dynamically from dynamic_tools.py
         try:
@@ -1023,3 +1054,96 @@ def execute_tool(name: str, args: Dict[str, Any]) -> str:
             return f"Error executing dynamic tool '{name}': {e}"
             
         return f"Error: Tool '{name}' not found."
+
+def mouse_click(x: int = None, y: int = None, button: str = "left", double: bool = False) -> str:
+    """Clicks the mouse at a specific coordinate or current location."""
+    try:
+        import pyautogui
+        pyautogui.FAILSAFE = True
+        
+        # Move first if coords provided
+        if x is not None and y is not None:
+            pyautogui.moveTo(x, y, duration=0.25)
+            
+        if double:
+            pyautogui.doubleClick(button=button)
+        else:
+            pyautogui.click(button=button)
+            
+        loc = f"({x}, {y})" if x is not None else "current location"
+        return f"Successfully { 'double-' if double else '' }clicked {button} button at {loc}."
+    except Exception as e:
+        return f"Mouse click failed: {e}"
+
+
+def keyboard_type(text: str, interval: float = 0.0) -> str:
+    """Types the given text as if from a physical keyboard."""
+    try:
+        import pyautogui
+        pyautogui.FAILSAFE = True
+        pyautogui.write(text, interval=interval)
+        return f"Successfully typed: '{text}'"
+    except Exception as e:
+        return f"Keyboard type failed: {e}"
+
+
+def keyboard_press(keys: str) -> str:
+    """Presses a key or hotkey combination (e.g., 'enter', 'ctrl+c', 'win+d')."""
+    try:
+        import pyautogui
+        pyautogui.FAILSAFE = True
+        key_list = keys.split('+')
+        if len(key_list) > 1:
+            pyautogui.hotkey(*key_list)
+        else:
+            pyautogui.press(key_list[0])
+        return f"Successfully pressed: '{keys}'"
+    except Exception as e:
+        return f"Keyboard press failed: {e}"
+
+    {
+        "type": "function",
+        "function": {
+            "name": "mouse_click",
+            "description": "Clicks the mouse at the specified coordinates (or current location if omitted). Use this to interact with UI elements you see.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "x": {"type": "integer", "description": "X coordinate on screen."},
+                    "y": {"type": "integer", "description": "Y coordinate on screen."},
+                    "button": {"type": "string", "enum": ["left", "right", "middle"], "description": "Which mouse button to click. Default is 'left'."},
+                    "double": {"type": "boolean", "description": "Set to true to double-click."}
+                }
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "keyboard_type",
+            "description": "Types the exact given string of text sequentially.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "text": {"type": "string", "description": "The text to type out."},
+                    "interval": {"type": "number", "description": "Seconds between key presses. Default is 0.0."}
+                },
+                "required": ["text"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "keyboard_press",
+            "description": "Presses a single key or combination (e.g. 'enter', 'ctrl+v', 'alt+f4', 'win+d').",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "keys": {"type": "string", "description": "The key string to press."}
+                },
+                "required": ["keys"]
+            }
+        }
+    },
+

@@ -556,128 +556,44 @@ def command(payload: CommandRequest):
             req_payload["tool_choice"] = "auto"
             req_payload["max_tokens"] = 512
             
-            try:
-                resp = requests.post(
-                    GROQ_LLM_URL,
-                    headers={"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"},
-                    json=req_payload,
-                    stream=True,
-                    timeout=15
-                )
-                
-                # Check for 400 Bad Request due to tool hallucination
-                if resp.status_code == 400:
-                    try:
-                        error_data = resp.json()
-                        if "tool_use_failed" in str(error_data):
-                            print("[JARVIS] Groq tool error, retrying without tools.")
-                            req_payload.pop("tools", None)
-                            req_payload.pop("tool_choice", None)
-                            resp = requests.post(
-                                GROQ_LLM_URL,
-                                headers={"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"},
-                                json=req_payload,
-                                stream=True,
-                                timeout=15
-                            )
-                    except Exception:
-                        pass
-
-                resp.raise_for_status()
-            except Exception as e:
-                yield f"data: {json.dumps({'error': f'Groq API error: {e}'})}\n\n"
-                return
-                
-            tool_calls_buffer = {}
-            full_text = ""
-            is_tool_call = False
-            
-            for line in resp.iter_lines():
-                if not line:
-                    continue
-                decoded = line.decode('utf-8')
-                print(f"[JARVIS] GROQ RAW: {decoded}")
-                if decoded.startswith("data: "):
-                    data_str = decoded[6:]
-                    if data_str == "[DONE]":
-                        break
-                    try:
-                        chunk = json.loads(data_str)
-                        delta = chunk["choices"][0].get("delta", {})
-                    except Exception as e:
-                        print(f"[JARVIS] Groq Parse Error on chunk: {data_str} - {e}")
-                        yield f"data: {json.dumps({'error': f'Groq Error: {e}'})}\n\n"
-                        continue
-                        
-                    if "tool_calls" in delta and delta["tool_calls"]:
-                        is_tool_call = True
-                        for tc in delta["tool_calls"]:
-                            idx = tc["index"]
-                            if idx not in tool_calls_buffer:
-                                tool_calls_buffer[idx] = {"id": tc.get("id"), "function": {"name": "", "arguments": ""}}
-                            if "function" in tc:
-                                if "name" in tc["function"]:
-                                    tool_calls_buffer[idx]["function"]["name"] += tc["function"]["name"]
-                                if "arguments" in tc["function"]:
-                                    tool_calls_buffer[idx]["function"]["arguments"] += tc["function"]["arguments"]
-                                    
-                    elif "content" in delta and delta["content"]:
-                        content = delta["content"]
-                        full_text += content
-                        yield f"data: {json.dumps({'chunk': content})}\n\n"
-            
-            if is_tool_call:
-                # Add the assistant's tool calls to conversation
-                assistant_tool_msg = {
-                    "role": "assistant",
-                    "content": None,
-                    "tool_calls": []
-                }
-                for tc in tool_calls_buffer.values():
-                    assistant_tool_msg["tool_calls"].append({
-                        "id": tc["id"],
-                        "type": "function",
-                        "function": {
-                            "name": tc["function"]["name"],
-                            "arguments": tc["function"]["arguments"]
-                        }
-                    })
-                conversation.append(assistant_tool_msg)
-                
-                # Execute tools
-                for tc in tool_calls_buffer.values():
-                    func_name = tc["function"]["name"]
-                    try:
-                        func_args = json.loads(tc["function"]["arguments"])
-                    except Exception:
-                        func_args = {}
-                    print(f"[JARVIS] Calling tool: {func_name} with {func_args}")
-                    result = tools.execute_tool(func_name, func_args)
-                    print(f"[JARVIS] Tool result: {result}")
-                    conversation.append({
-                        "role": "tool",
-                        "content": str(result),
-                        "tool_call_id": tc["id"]
-                    })
-                    
+            for turn_idx in range(5):
                 req_payload["messages"] = [{"role": "system", "content": get_system_prompt()}] + conversation
-                req_payload.pop("tools", None)
-                req_payload.pop("tool_choice", None)
-                
                 try:
-                    resp2 = requests.post(
+                    resp = requests.post(
                         GROQ_LLM_URL,
                         headers={"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"},
                         json=req_payload,
                         stream=True,
-                        timeout=15
+                        timeout=20
                     )
-                    resp2.raise_for_status()
+                    
+                    if resp.status_code == 400:
+                        try:
+                            error_data = resp.json()
+                            if "tool_use_failed" in str(error_data):
+                                print("[JARVIS] Groq tool error, retrying without tools.")
+                                req_payload.pop("tools", None)
+                                req_payload.pop("tool_choice", None)
+                                resp = requests.post(
+                                    GROQ_LLM_URL,
+                                    headers={"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"},
+                                    json=req_payload,
+                                    stream=True,
+                                    timeout=20
+                                )
+                        except Exception:
+                            pass
+
+                    resp.raise_for_status()
                 except Exception as e:
-                    yield f"data: {json.dumps({'error': f'Groq follow-up error: {e}'})}\n\n"
+                    yield f"data: {json.dumps({'error': f'Groq API error: {e}'})}\n\n"
                     return
+                    
+                tool_calls_buffer = {}
+                full_text = ""
+                is_tool_call = False
                 
-                for line in resp2.iter_lines():
+                for line in resp.iter_lines():
                     if not line:
                         continue
                     decoded = line.decode('utf-8')
@@ -688,28 +604,67 @@ def command(payload: CommandRequest):
                         try:
                             chunk = json.loads(data_str)
                             delta = chunk["choices"][0].get("delta", {})
-                        except Exception:
+                        except Exception as e:
                             continue
                             
-                        if "content" in delta and delta["content"]:
+                        if "tool_calls" in delta and delta["tool_calls"]:
+                            is_tool_call = True
+                            for tc in delta["tool_calls"]:
+                                idx = tc["index"]
+                                if idx not in tool_calls_buffer:
+                                    tool_calls_buffer[idx] = {"id": tc.get("id"), "function": {"name": "", "arguments": ""}}
+                                if "function" in tc:
+                                    if "name" in tc["function"]:
+                                        tool_calls_buffer[idx]["function"]["name"] += tc["function"]["name"]
+                                    if "arguments" in tc["function"]:
+                                        tool_calls_buffer[idx]["function"]["arguments"] += tc["function"]["arguments"]
+                                        
+                        elif "content" in delta and delta["content"]:
                             content = delta["content"]
                             full_text += content
                             yield f"data: {json.dumps({'chunk': content})}\n\n"
-                            
-                # Save the final text after tool execution
-                final_text = sanitize_reply(full_text)
-                assistant_message = {"role": "assistant", "content": final_text}
-                conversation.append(assistant_message)
-                save_history()
-                total_tokens += len(final_text.split())
-                            
-            else:
-                final_text = sanitize_reply(full_text)
-                assistant_message = {"role": "assistant", "content": final_text}
-                conversation.append(assistant_message)
-                save_history()
-                total_tokens += len(final_text.split())
                 
+                if is_tool_call:
+                    assistant_tool_msg = {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": []
+                    }
+                    for tc in tool_calls_buffer.values():
+                        assistant_tool_msg["tool_calls"].append({
+                            "id": tc["id"],
+                            "type": "function",
+                            "function": {
+                                "name": tc["function"]["name"],
+                                "arguments": tc["function"]["arguments"]
+                            }
+                        })
+                    conversation.append(assistant_tool_msg)
+                    
+                    for tc in tool_calls_buffer.values():
+                        func_name = tc["function"]["name"]
+                        try:
+                            func_args = json.loads(tc["function"]["arguments"])
+                        except Exception:
+                            func_args = {}
+                        print(f"[JARVIS] Calling tool: {func_name} with {func_args}")
+                        result = tools.execute_tool(func_name, func_args)
+                        print(f"[JARVIS] Tool result: {result}")
+                        conversation.append({
+                            "role": "tool",
+                            "content": str(result),
+                            "tool_call_id": tc["id"]
+                        })
+                    # Loop back for the next turn
+                    continue
+                else:
+                    final_text = sanitize_reply(full_text)
+                    assistant_message = {"role": "assistant", "content": final_text}
+                    conversation.append(assistant_message)
+                    save_history()
+                    global total_tokens
+                    total_tokens += len(final_text.split())
+                    break
         else:
             # OLLAMA LOCAL STREAMING
             try:
