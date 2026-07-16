@@ -502,6 +502,153 @@ def get_history():
             return []
     return []
 
+def _fast_intent(text: str) -> dict | None:
+    """Resolve common open/close/search requests fast to bypass LLM."""
+    import re
+    from jarvis.core import tools
+    
+    raw = (text or "").strip()
+    if not raw:
+        return None
+    lowered = f" {raw.lower()} "
+
+    close = any(w in lowered for w in (" close ", " quit ", " exit ", " shut down ", " turn off "))
+    search = any(w in lowered for w in (" search", "search ", " look up", "look up ", " find ", " search for", "search the web"))
+    openv = any(w in lowered for w in (" open ", "open ", " launch ", "launch ", " start ", "start ", " go to ", " visit ", " watch ", " play ", " show me ", " bring up ", " take me to ", " navigate to "))
+
+    if close: action = "close"
+    elif search: action = "search"
+    elif openv: action = "open"
+    else: return None
+
+    # LeetCode hijacking
+    if "leetcode" in lowered and any(word in lowered for word in ["status", "progress", "next", "revision", "revise", "due", "mark", "solved", "done", "finished"]):
+        return None
+
+    if action == "open":
+        prob_num_match = re.search(r"(?:open\s+)?(?:leetcode\s+)?(?:problem\s+(?:number\s+)?|#)(\d+)", lowered)
+        if prob_num_match:
+            num = prob_num_match.group(1)
+            return {"response": f"Opening Leetcode problem #{num}.", "tool": "leetcode_action", "args": {"action": "open", "query": num}}
+        prob_name_match = re.search(r"leetcode\s+(?:problem\s+)?([a-z0-9 ]+)$", lowered.strip().replace("  ", " "))
+        if prob_name_match:
+            name = prob_name_match.group(1).strip()
+            return {"response": f"Opening Leetcode problem '{name}'.", "tool": "leetcode_action", "args": {"action": "open", "query": name}}
+
+    KNOWN_WEBSITES = {
+        "youtube": "https://www.youtube.com", "google": "https://www.google.com",
+        "github": "https://github.com", "gmail": "https://mail.google.com",
+        "chatgpt": "https://chat.openai.com", "claude": "https://claude.ai",
+        "leetcode": "https://leetcode.com"
+    }
+    
+    for name, url in KNOWN_WEBSITES.items():
+        if re.search(rf"\b{name}\b", lowered):
+            if action == "close":
+                return {"response": f"I cannot close a browser tab directly, but I can reopen {name} anytime."}
+            if action == "search":
+                return {"response": f"Searching the web for {name}.", "tool": "web_search", "args": {"query": name}}
+            tools.open_app(url)
+            return {"response": f"Opening {name}."}
+
+    KNOWN_APPS = {
+        "calculator": "calc", "calc": "calc", "notepad": "notepad",
+        "explorer": "explorer", "vscode": "vscode", "vs code": "vscode",
+        "chrome": "chrome"
+    }
+
+    for name, target in KNOWN_APPS.items():
+        if re.search(rf"\b{re.escape(name)}\b", lowered):
+            if action == "close":
+                tools.close_app(target)
+                return {"response": f"Closing {name}."}
+            tools.open_app(target)
+            return {"response": f"Opening {name}."}
+
+    url_match = re.search(r"(https?://[^\s]+)|([a-z0-9-]+\.(?:com|org|net|io|dev|edu|gov|co)\b)", lowered)
+    if url_match and action in {"open", "search"}:
+        url = url_match.group(0)
+        if action == "search":
+            return {"response": f"Searching the web for {url}.", "tool": "web_search", "args": {"query": url}}
+        tools.open_app(url)
+        return {"response": f"Opening {url}."}
+
+    return None
+
+
+def _fast_intent(text: str) -> dict | None:
+    """Resolve common open/close/search requests fast to bypass LLM."""
+    import re
+    from jarvis.core import tools
+    
+    raw = (text or "").strip()
+    if not raw:
+        return None
+    lowered = f" {raw.lower()} "
+
+    close = any(w in lowered for w in (" close ", " quit ", " exit ", " shut down ", " turn off "))
+    search = any(w in lowered for w in (" search", "search ", " look up", "look up ", " find ", " search for", "search the web"))
+    openv = any(w in lowered for w in (" open ", "open ", " launch ", "launch ", " start ", "start ", " go to ", " visit ", " watch ", " play ", " show me ", " bring up ", " take me to ", " navigate to "))
+
+    if close: action = "close"
+    elif search: action = "search"
+    elif openv: action = "open"
+    else: return None
+
+    # LeetCode hijacking
+    if "leetcode" in lowered and any(word in lowered for word in ["status", "progress", "next", "revision", "revise", "due", "mark", "solved", "done", "finished"]):
+        return None
+
+    if action == "open":
+        prob_num_match = re.search(r"(?:open\s+)?(?:leetcode\s+)?(?:problem\s+(?:number\s+)?|#)(\d+)", lowered)
+        if prob_num_match:
+            num = prob_num_match.group(1)
+            return {"response": f"Opening Leetcode problem #{num}.", "tool": "leetcode_action", "args": {"action": "open", "query": num}}
+        prob_name_match = re.search(r"leetcode\s+(?:problem\s+)?([a-z0-9 ]+)$", lowered.strip().replace("  ", " "))
+        if prob_name_match:
+            name = prob_name_match.group(1).strip()
+            return {"response": f"Opening Leetcode problem '{name}'.", "tool": "leetcode_action", "args": {"action": "open", "query": name}}
+
+    KNOWN_WEBSITES = {
+        "youtube": "https://www.youtube.com", "google": "https://www.google.com",
+        "github": "https://github.com", "gmail": "https://mail.google.com",
+        "chatgpt": "https://chat.openai.com", "claude": "https://claude.ai",
+        "leetcode": "https://leetcode.com"
+    }
+    
+    for name, url in KNOWN_WEBSITES.items():
+        if re.search(rf"\b{name}\b", lowered):
+            if action == "close":
+                return {"response": f"I cannot close a browser tab directly, but I can reopen {name} anytime."}
+            if action == "search":
+                return {"response": f"Searching the web for {name}.", "tool": "web_search", "args": {"query": name}}
+            tools.open_app(url)
+            return {"response": f"Opening {name}."}
+
+    KNOWN_APPS = {
+        "calculator": "calc", "calc": "calc", "notepad": "notepad",
+        "explorer": "explorer", "vscode": "vscode", "vs code": "vscode",
+        "chrome": "chrome"
+    }
+
+    for name, target in KNOWN_APPS.items():
+        if re.search(rf"\b{re.escape(name)}\b", lowered):
+            if action == "close":
+                tools.close_app(target)
+                return {"response": f"Closing {name}."}
+            tools.open_app(target)
+            return {"response": f"Opening {name}."}
+
+    url_match = re.search(r"(https?://[^\s]+)|([a-z0-9-]+\.(?:com|org|net|io|dev|edu|gov|co)\b)", lowered)
+    if url_match and action in {"open", "search"}:
+        url = url_match.group(0)
+        if action == "search":
+            return {"response": f"Searching the web for {url}.", "tool": "web_search", "args": {"query": url}}
+        tools.open_app(url)
+        return {"response": f"Opening {url}."}
+
+    return None
+
 @app.post("/api/command")
 def command(payload: CommandRequest):
     text = payload.text.strip()
@@ -510,6 +657,25 @@ def command(payload: CommandRequest):
 
     def stream_generator():
         global total_tokens
+
+        fast_res = _fast_intent(text)
+        if fast_res:
+            import json
+            yield f"data: {json.dumps({'chunk': fast_res['response']})}\n\n"
+            if "tool" in fast_res:
+                from jarvis.core import tools
+                try:
+                    tools._dispatch_tool(fast_res["tool"], fast_res["args"])
+                except Exception as e:
+                    print("Fast intent tool error:", e)
+            
+            # Record in conversation
+            conversation.append({"role": "user", "content": text})
+            conversation.append({"role": "assistant", "content": fast_res['response']})
+            save_history()
+            yield f"data: {json.dumps({'done': True, 'model': 'fast_intent'})}\n\n"
+            return
+
         if not GROQ_KEY:
             yield f"data: {json.dumps({'error': 'Groq API key not found.'})}\n\n"
         conversation.append({"role": "user", "content": text})
@@ -694,6 +860,8 @@ def command(payload: CommandRequest):
                 assistant_message = {"role": "assistant", "content": final_text}
                 conversation.append(assistant_message)
                 save_history()
+                import threading
+                threading.Thread(target=extract_memory_background, args=(text,), daemon=True).start()
                 
             except Exception as e:
                 yield f"data: {json.dumps({'error': f'Ollama error: {e}. Is Ollama running?'})}\n\n"
@@ -795,23 +963,64 @@ async def proactive_loop():
         await manager.broadcast(test_msg)
         
     while True:
-        await asyncio.sleep(60) # Check every 60 seconds
+        await asyncio.sleep(180) # Check every 3 minutes
         if manager.active_connections:
             try:
                 from jarvis.core import tools
+                import json
                 ctx = tools.get_system_context()
+                clip = tools.get_clipboard()
                 
-                # Proactive resource warning
-                if ctx["ram_percent"] > 90.0 or ctx["cpu_percent"] > 95.0:
-                    alert_msg = json.dumps({
-                        "type": "proactive",
-                        "text": f"Sir, I noticed system resources are critical. RAM is at {ctx['ram_percent']}% and CPU is at {ctx['cpu_percent']}%. Would you like me to close some background processes?"
-                    })
-                    await manager.broadcast(alert_msg)
-                    # Sleep longer after an alert to avoid spamming
-                    await asyncio.sleep(300) 
-            except Exception:
-                pass
+                # Screen Awareness
+                screen_context = 'No screen data available.'
+                img_data = tools.capture_screen()
+                if img_data:
+                    screen_context = tools.analyze_image(img_data)
+                
+                sys_prompt = f"""You are JARVIS, a highly advanced autonomous AI assistant. 
+You are running as a background proactive engine. 
+Current System Context:
+- RAM Usage: {ctx['ram_percent']}%
+- CPU Usage: {ctx['cpu_percent']}%
+- Clipboard: {clip[:200] if clip else 'Empty'}
+- Screen Context: {screen_context}
+
+Your job is to decide if you should proactively speak to the user.
+Do not speak unless there is a VERY good reason (e.g., resources are critical, they copied an obvious error to the clipboard, or they are struggling with something on their screen).
+Output ONLY valid JSON in this exact format:
+{{
+    "should_speak": true,
+    "message": "The message to speak if true, or empty string if false"
+}}
+"""
+                from jarvis.core.server import GROQ_KEY, GROQ_LLM_MODEL
+                if GROQ_KEY:
+                    import requests
+                    url = 'https://api.groq.com/openai/v1/chat/completions'
+                    headers = {
+                        'Authorization': f'Bearer {GROQ_KEY}',
+                        'Content-Type': 'application/json'
+                    }
+                    data = {
+                        'model': GROQ_LLM_MODEL,
+                        'messages': [{'role': 'system', 'content': sys_prompt}],
+                        'temperature': 0.3,
+                        'response_format': {'type': 'json_object'}
+                    }
+                    response = requests.post(url, headers=headers, json=data)
+                    res = response.json()
+                    response_text = res['choices'][0]['message']['content']
+                    res = json.loads(response_text)
+                    
+                    if res.get("should_speak") and res.get("message"):
+                        alert_msg = json.dumps({
+                            "type": "proactive",
+                            "text": res["message"]
+                        })
+                        await manager.broadcast(alert_msg)
+                        await asyncio.sleep(300)
+            except Exception as e:
+                print(f"[JARVIS] Proactive loop err: {e}")
 
 @app.on_event("startup")
 async def startup_event():
@@ -847,3 +1056,47 @@ async def tts(payload: CommandRequest):
 
 # Serve static files (mounted at root last to avoid shadowing API routes)
 app.mount("/", StaticFiles(directory=str(WEB_DIR), html=True), name="web")
+
+
+def extract_memory_background(user_text: str):
+    """Quietly extracts facts from user input and saves to ChromaDB."""
+    try:
+        from jarvis.core import tools
+        from jarvis.core.server import GROQ_KEY, GROQ_LLM_MODEL
+        if not GROQ_KEY:
+            return
+        
+        sys_prompt = f"""You are an autonomous memory extractor. 
+Extract any long-term facts, preferences, or personal details about the user from the following message.
+Only extract things worth remembering for months. If nothing, return empty JSON.
+Output ONLY valid JSON in this exact format:
+{{
+    "facts": ["Fact 1", "Fact 2"]
+}}
+"""
+        import requests
+        import json
+        url = 'https://api.groq.com/openai/v1/chat/completions'
+        headers = {
+            'Authorization': f'Bearer {GROQ_KEY}',
+            'Content-Type': 'application/json'
+        }
+        data = {
+            'model': GROQ_LLM_MODEL,
+            'messages': [
+                {'role': 'system', 'content': sys_prompt},
+                {'role': 'user', 'content': user_text}
+            ],
+            'temperature': 0.1,
+            'response_format': {'type': 'json_object'}
+        }
+        response = requests.post(url, headers=headers, json=data)
+        res = response.json()
+        response_text = res['choices'][0]['message']['content']
+        res = json.loads(response_text)
+        facts = res.get("facts", [])
+        for fact in facts:
+            print(f"[JARVIS] Auto-memorized: {fact}")
+            tools.store_memory(fact)
+    except Exception as e:
+        print(f"[JARVIS] Memory extraction error: {e}")

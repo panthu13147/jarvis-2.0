@@ -8,6 +8,11 @@
   <!-- Modern Typography -->
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css" />
+  
+  <!-- Markdown & Code Highlighting -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 </head>
 <body>
   <!-- Ambient Background -->
@@ -143,7 +148,9 @@
           <label>VOCAL SYNTHESIS</label>
           <select id="voiceSelect" class="glass-select">
             <option value="sapi5">Windows SAPI5 (Fast, Offline)</option>
+            <option value="pocket">Pocket TTS (Voice Clone)</option>
             <option value="edge">Edge TTS (High Quality, Online)</option>
+            <option value="groq">Groq TTS (Cloud, PlayAI)</option>
           </select>
         </div>
         <div class="setting-group">

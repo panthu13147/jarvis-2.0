@@ -8,6 +8,8 @@
     ? 'http://127.0.0.1:8000' 
     : window.location.origin;
 
+  const GROQ_LLM_MODEL = 'llama-3.3-70b-versatile';
+
   // ── DOM refs ───────────────────────────────────────────────────
   const chatLog        = document.getElementById('chatLog');
   const commandInput   = document.getElementById('commandInput');
@@ -83,7 +85,7 @@
         } else if (data.type === 'wakeup') {
           // Triggered by global hotkey
           if (!isRecording) {
-            toggleMic();
+            micBtn.click();
           }
         }
       } catch(e) {
@@ -315,6 +317,7 @@
       currentAbortController = null;
     }
     if (window.speechSynthesis) window.speechSynthesis.cancel();
+    ttsQueue = []; // Clear pending TTS sentences
     
     if (isProcessing) {
       isProcessing = false;
@@ -405,21 +408,25 @@
       mediaRecorder.ondataavailable = async (e) => {
         if (e.data.size > 0) {
           audioChunks.push(e.data);
-          // Stream raw binary chunks over WebSocket if open
-          if (ws && ws.readyState === WebSocket.OPEN) {
-              const arrayBuffer = await e.data.arrayBuffer();
-              ws.send(arrayBuffer);
-          }
         }
       };
 
       mediaRecorder.onstop = async () => {
         isRecording = false;
-        if (audioChunks.length === 0 || !isMicActive) return;
+        if (audioChunks.length === 0) return;
+        
+        const audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
         audioChunks = [];
 
-        // Don't send if we were just interrupted
-        if (isSpeaking) return; 
+        isSpeaking = false;
+        
+        if (audioBlob.size < 4000) {
+            console.log("Audio blob too small, ignoring to prevent Groq API error.");
+            setOrbMode('idle');
+            transcriptText.textContent = 'Say something or type a command...';
+            transcriptText.classList.remove('active');
+            return;
+        }
 
         setOrbMode('thinking');
         transcriptText.textContent = 'Transcribing stream...';
@@ -427,6 +434,8 @@
 
         // Notify backend that stream is complete
         if (ws && ws.readyState === WebSocket.OPEN) {
+            const arrayBuffer = await audioBlob.arrayBuffer();
+            ws.send(arrayBuffer);
             ws.send(JSON.stringify({ type: "stream_end" }));
         }
       };
@@ -479,7 +488,7 @@
         const ttsResp = await fetch(`${API_BASE}/api/tts`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: sentence }),
+          body: JSON.stringify({ text: sentence, provider: prefs.voice }),
           signal: currentAbortController?.signal
         });
         
@@ -503,44 +512,7 @@
     }
   }
 
-  let ttsQueue = [];
-  let isPlayingAudio = false;
 
-  async function processTTSQueue() {
-    if (isPlayingAudio || ttsQueue.length === 0) return;
-    isPlayingAudio = true;
-    
-    while (ttsQueue.length > 0) {
-      const sentence = ttsQueue.shift();
-      if (!sentence.trim()) continue;
-      
-      try {
-        const ttsResp = await fetch(`${API_BASE}/api/tts`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: sentence }),
-          signal: currentAbortController?.signal
-        });
-        
-        if (ttsResp.ok) {
-          const wavBuffer = await ttsResp.arrayBuffer();
-          await playAudioChunk(wavBuffer);
-        }
-      } catch (e) {
-        console.warn("TTS failed for sentence", e);
-      }
-    }
-    
-    isPlayingAudio = false;
-    if (!isProcessing) {
-      if (isMicActive) {
-        setOrbMode('listening');
-      } else {
-        setOrbMode('idle');
-        transcriptText.textContent = 'Say something or type a command...';
-      }
-    }
-  }
 
   async function processCommand(text, fromVoice = false) {
     const clean = text.trim();
@@ -582,6 +554,10 @@
       hideTypingIndicator();
       setOrbMode('speaking');
 
+      let fullMessage = "";
+      let inCodeBlock = false;
+      let codeBuffer = "";
+      
       while (!done) {
         const { value, done: readerDone } = await reader.read();
         done = readerDone;
@@ -597,16 +573,38 @@
               try {
                 const data = JSON.parse(dataStr);
                 if (data.chunk) {
-                  currentMsgElement.textContent += data.chunk;
-                  transcriptText.textContent = currentMsgElement.textContent;
+                  fullMessage += data.chunk;
+                  
+                  // Render markdown
+                  if (window.marked && window.hljs) {
+                      marked.setOptions({
+                          highlight: function(code, lang) {
+                              const language = hljs.getLanguage(lang) ? lang : 'plaintext';
+                              return hljs.highlight(code, { language }).value;
+                          }
+                      });
+                      currentMsgElement.innerHTML = marked.parse(fullMessage);
+                  } else {
+                      currentMsgElement.textContent = fullMessage;
+                  }
+                  
+                  transcriptText.textContent = fullMessage.replace(/<[^>]*>?/gm, ''); // stripped HTML for transcript
                   chatLog.scrollTop = chatLog.scrollHeight;
                   
-                  sentenceBuffer += data.chunk;
-                  // Extremely simple sentence boundary detection
-                  if (sentenceBuffer.match(/[.!?\n]\s/)) {
-                    ttsQueue.push(sentenceBuffer);
-                    sentenceBuffer = "";
-                    processTTSQueue(); // fire and forget
+                  // Code block detection for TTS filtering
+                  const tickCount = (data.chunk.match(/```/g) || []).length;
+                  if (tickCount % 2 !== 0) {
+                      inCodeBlock = !inCodeBlock;
+                  }
+                  
+                  if (!inCodeBlock && !data.chunk.includes('```')) {
+                      sentenceBuffer += data.chunk;
+                      // Extremely simple sentence boundary detection
+                      if (sentenceBuffer.match(/[.!?\n]\s/)) {
+                        ttsQueue.push(sentenceBuffer);
+                        sentenceBuffer = "";
+                        processTTSQueue(); // fire and forget
+                      }
                   }
                 }
                 if (data.done) {
@@ -619,7 +617,7 @@
       }
       
       // Push any remaining text
-      if (sentenceBuffer.trim()) {
+      if (sentenceBuffer.trim() && !inCodeBlock) {
         ttsQueue.push(sentenceBuffer);
         processTTSQueue();
       }
@@ -774,7 +772,7 @@
         const ttsResp = await fetch(`${API_BASE}/api/tts`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: greeting }),
+          body: JSON.stringify({ text: greeting, provider: prefs.voice }),
         });
         if (ttsResp.ok) {
           const wavBuffer = await ttsResp.arrayBuffer();
@@ -826,20 +824,7 @@
   });
 
   function applyTheme(theme) {
-    const root = document.documentElement;
-    if (theme === 'ultron') {
-      root.style.setProperty('--primary', '#ff3d00');
-      root.style.setProperty('--primary-glow', 'rgba(255,61,0,0.5)');
-      root.style.setProperty('--blue-core', '#ff9100');
-    } else if (theme === 'vision') {
-      root.style.setProperty('--primary', '#00e676');
-      root.style.setProperty('--primary-glow', 'rgba(0,230,118,0.5)');
-      root.style.setProperty('--blue-core', '#ffea00');
-    } else { // iron-man default
-      root.style.setProperty('--primary', '#00e5ff');
-      root.style.setProperty('--primary-glow', 'rgba(0, 229, 255, 0.4)');
-      root.style.setProperty('--blue-core', '#e0f7fa');
-    }
+    document.documentElement.setAttribute('data-theme', theme);
   }
 
   // ── History Sidebar Logic ──────────────────────────────────────
@@ -886,9 +871,39 @@
   }
 
   async function loadSession(id) {
-    // For now just clear current chat. Real impl would fetch full log.
-    chatLog.innerHTML = '';
-    addMessage('jarvis', `Loaded session ${id}. (Full log loading to be implemented in backend)`);
+    // Minimal impl: restore a saved session transcript from localStorage if present.
+    try {
+      const sessions = JSON.parse(localStorage.getItem('jarvis_sessions') || '{}');
+      const session = sessions[id];
+      chatLog.innerHTML = '';
+      if (session && Array.isArray(session.messages)) {
+        session.messages.forEach((m) => {
+          if (m && m.role && typeof m.content === 'string') {
+            addMessage(m.role === 'user' ? 'user' : 'jarvis', m.content);
+          }
+        });
+      } else {
+        addMessage('jarvis', `Loaded session ${id}.`);
+      }
+    } catch (e) {
+      chatLog.innerHTML = '';
+      addMessage('jarvis', `Loaded session ${id}.`);
+    }
+  }
+
+  // ── Play greeting audio and stream the text into the message element ──
+  async function playAudioAndStreamText(wavBuffer, text, msgElement, transcriptEl) {
+    try {
+      if (msgElement) msgElement.textContent = text;
+      if (transcriptEl) {
+        transcriptEl.textContent = text;
+        transcriptEl.classList.add('active');
+      }
+      await playAudioChunk(wavBuffer);
+    } catch (e) {
+      console.warn('playAudioAndStreamText failed:', e);
+      if (msgElement) msgElement.textContent = text || '';
+    }
   }
 
   // ── Initialization Overlay ───────────────────────────────────────

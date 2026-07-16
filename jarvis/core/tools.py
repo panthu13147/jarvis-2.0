@@ -5,6 +5,9 @@ Provides safe tools and Groq function schemas for the LLM.
 import os
 import subprocess
 import sys
+import shutil
+import secrets
+import string
 import psutil
 import uuid
 import threading
@@ -163,28 +166,99 @@ def recall_memories(query: str, n_results: int = 3) -> list[str]:
 def spawn_agents(task_description: str) -> str:
     """Spawns an autonomous background agent to complete a complex coding or OS task."""
     def worker():
-        print(f"\n[JARVIS-OS] 🚀 Spawning Manager Agent for task: {task_description}")
-        time.sleep(2)
-        print(f"[JARVIS-OS] 🛠️ Deploying Worker 1 (Implementation) & Worker 2 (QA)...")
-        time.sleep(6)
-        print(f"[JARVIS-OS] ✅ Background agents completed task: {task_description}\n")
-        
+        try:
+            print(f"\n[JARVIS-OS] ⚙️ Spawning Manager Agent for task: {task_description}")
+            from jarvis.core.server import GROQ_KEY, GROQ_LLM_MODEL
+            if not GROQ_KEY:
+                return
+            
+            import requests
+            import json
+            
+            # Simple agent loop
+            messages = [
+                {"role": "system", "content": f"You are a background Jarvis agent. Execute the user's task. You can use 'execute_terminal_command' to run powershell commands. Return JSON strictly: {{'command': 'cmd to run'}} or {{'done': true, 'result': 'summary'}}. Task: {task_description}"}
+            ]
+            
+            for _ in range(5): # Max 5 steps
+                url = 'https://api.groq.com/openai/v1/chat/completions'
+                headers = {
+                    'Authorization': f'Bearer {GROQ_KEY}',
+                    'Content-Type': 'application/json'
+                }
+                data = {
+                    'model': GROQ_LLM_MODEL,
+                    'messages': messages,
+                    'temperature': 0.2,
+                    'response_format': {'type': 'json_object'}
+                }
+                response = requests.post(url, headers=headers, json=data)
+                res = response.json()
+                response_text = res['choices'][0]['message']['content']
+                resp = json.loads(response_text)
+                messages.append({"role": "assistant", "content": response_text})
+                
+                if resp.get("done"):
+                    break
+                    
+                cmd = resp.get("command")
+                if cmd:
+                    out = execute_terminal_command(cmd)
+                    messages.append({"role": "user", "content": f"Output: {out[:500]}"})
+            
+            # Notify user
+            ps_script = f"""
+            Add-Type -AssemblyName System.Windows.Forms
+            $balloon = New-Object System.Windows.Forms.NotifyIcon
+            $path = (Get-Process -id $pid).Path
+            $balloon.Icon = [System.Drawing.Icon]::ExtractAssociatedIcon($path)
+            $balloon.BalloonTipIcon = 'Info'
+            $balloon.BalloonTipText = 'Background agent finished task: {task_description[:50]}'
+            $balloon.BalloonTipTitle = 'JARVIS'
+            $balloon.Visible = $true
+            $balloon.ShowBalloonTip(5000)
+            Start-Sleep -s 5
+            $balloon.Dispose()
+            """
+            import subprocess
+            subprocess.run(["powershell", "-Command", ps_script], creationflags=subprocess.CREATE_NO_WINDOW)
+            print(f"[JARVIS-OS] ✅ Background agents completed task: {task_description}\n")
+        except Exception as e:
+            print(f"[JARVIS-OS] Agent error: {e}")
+            
     t = threading.Thread(target=worker, daemon=True)
     t.start()
     return f"Agents successfully deployed in the background for task: '{task_description}'. The manager will handle execution silently."
 
 
 def execute_terminal_command(command: str) -> str:
-    """Safely executes a terminal command and returns the output."""
-    # Safety wrapper: prevent highly destructive commands
-    forbidden = ["del /f /s /q", "format", "rmdir /s /q", "shutdown"]
+    """Safely executes a terminal command (PowerShell) and returns the output."""
+    # Strict safety wrapper as per AGENTS.md rules
+    import re
     cmd_lower = command.lower()
-    for f in forbidden:
-        if f in cmd_lower:
-            return f"Error: Command '{command}' is blacklisted for safety."
+    
+    # Block destructive commands
+    destructive_patterns = [
+        r'\b(rm|del|remove-item|rmdir)\b',
+        r'\b(shutdown|restart-computer|stop-computer|logoff)\b',
+        r'\b(format|diskpart)\b',
+        r'\b(set-itemproperty|remove-itemproperty|reg add|reg delete)\b'
+    ]
+    
+    for pattern in destructive_patterns:
+        if re.search(pattern, cmd_lower):
+            return f"Error: Command '{command}' blocked by AGENTS.md safety policy (destructive). User must explicitly run this themselves."
             
     try:
-        result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=10)
+        import subprocess
+        # Run in powershell to support complex multi-line scripts
+        result = subprocess.run(
+            ["powershell", "-Command", command],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        
         output = result.stdout.strip()
         error = result.stderr.strip()
         
@@ -192,6 +266,8 @@ def execute_terminal_command(command: str) -> str:
             return f"Success:\n{output}" if output else "Command executed successfully with no output."
         else:
             return f"Failed (Code {result.returncode}):\n{error or output}"
+    except subprocess.TimeoutExpired:
+        return "Error: Command timed out after 30 seconds."
     except Exception as e:
         return f"Error executing command: {e}"
 
@@ -223,14 +299,22 @@ def open_app(target: str) -> str:
         "amazon", "twitch", "discord", "stackoverflow", "chatgpt", "claude"
     }:
         url = f"https://www.{target_lower}.com"
-        import webbrowser
-        webbrowser.open(url)
+        import platform
+        if platform.system() == "Windows":
+            os.system(f"start {url}")
+        else:
+            import webbrowser
+            webbrowser.open(url)
         return f"Opened {target_lower} in browser."
         
     if "." in target_lower and not " " in target_lower:
         url = f"https://{target_lower}" if not target_lower.startswith("http") else target_lower
-        import webbrowser
-        webbrowser.open(url)
+        import platform
+        if platform.system() == "Windows":
+            os.system(f"start {url}")
+        else:
+            import webbrowser
+            webbrowser.open(url)
         return f"Opened {url} in browser."
         
     # If not recognized, try to find a URL via DuckDuckGo and open it
@@ -243,11 +327,15 @@ def open_app(target: str) -> str:
         with DDGS() as ddgs:
             results = list(ddgs.text(target, max_results=1))
         
-        if results and "href" in results[0]:
+        if results:
             url = results[0]["href"]
-            import webbrowser
-            webbrowser.open(url)
-            return f"Opened '{target}' in browser ({url})."
+            import platform
+            if platform.system() == "Windows":
+                os.system(f"start {url}")
+            else:
+                import webbrowser
+                webbrowser.open(url)
+            return f"Found and opened {url} in browser."
     except Exception:
         pass
         
@@ -331,6 +419,99 @@ def send_email(to: str, subject: str = "", body: str = "") -> str:
 
 
 # ── New Tools ────────────────────────────────────────────────────────
+
+def control_mouse_and_keyboard(action: str, x: int = None, y: int = None, text: str = None, key: str = None) -> str:
+    """Simulates mouse clicks and keyboard presses."""
+    try:
+        import pyautogui
+        if action == "click":
+            if x is not None and y is not None:
+                pyautogui.click(x, y)
+                return f"Clicked at ({x}, {y})"
+            else:
+                pyautogui.click()
+                return "Clicked at current location"
+        elif action == "type":
+            if text:
+                pyautogui.write(text, interval=0.01)
+                return f"Typed: {text}"
+            return "No text provided to type."
+        elif action == "press":
+            if key:
+                pyautogui.press(key)
+                return f"Pressed key: {key}"
+            return "No key provided to press."
+        elif action == "hotkey":
+            if key:
+                keys = key.split('+')
+                pyautogui.hotkey(*keys)
+                return f"Pressed hotkey: {key}"
+            return "No hotkey provided."
+        else:
+            return "Unknown action."
+    except ImportError:
+        return "Error: pyautogui is not installed."
+    except Exception as e:
+        return f"Failed to control OS: {e}"
+
+def take_screenshot() -> str:
+    """Takes a screenshot and saves it to the current directory."""
+    try:
+        import pyautogui
+        from datetime import datetime
+        filename = f"screenshot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+        pyautogui.screenshot(filename)
+        return f"Screenshot saved as {filename}."
+    except ImportError:
+        return "Error: pyautogui is not installed."
+    except Exception as e:
+        return f"Failed to take screenshot: {e}"
+
+def read_file(path: str, max_lines: int = 500) -> str:
+    """Reads the contents of a file."""
+    try:
+        if not os.path.exists(path):
+            return f"Error: File '{path}' not found."
+        with open(path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+            
+        if len(lines) > max_lines:
+            truncated = "".join(lines[:max_lines])
+            return truncated + f"\n... (File truncated, showing first {max_lines} lines of {len(lines)})"
+        return "".join(lines)
+    except Exception as e:
+        return f"Failed to read file: {e}"
+
+def list_directory(path: str) -> str:
+    """Lists files and folders in a directory."""
+    try:
+        if not os.path.exists(path):
+            return f"Error: Directory '{path}' not found."
+        if not os.path.isdir(path):
+            return f"Error: '{path}' is not a directory."
+            
+        items = os.listdir(path)
+        result = []
+        for item in items:
+            full_path = os.path.join(path, item)
+            if os.path.isdir(full_path):
+                result.append(f"[DIR]  {item}")
+            else:
+                result.append(f"[FILE] {item}")
+        return "\n".join(result) if result else "(Empty directory)"
+    except Exception as e:
+        return f"Failed to list directory: {e}"
+
+def write_file(path: str, content: str) -> str:
+    """Creates or overwrites a file with new content."""
+    try:
+        os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+        return f"Successfully wrote to {path}"
+    except Exception as e:
+        return f"Failed to write file: {e}"
+
 
 def web_search(query: str) -> str:
     """Searches the web using DuckDuckGo and returns top results."""
@@ -675,9 +856,242 @@ def create_tool(name: str, description: str, python_code: str, schema_json: str)
         return f"Failed to create tool: {e}"
 
 
+# ── Safety / confirmation gate ──────────────────────────────────────
+# Ported from v1.0 (jarvis_app/brain.py). Destructive operations never run on the
+# first call. Instead `execute_tool` returns a `confirmation_required` challenge with
+# a random 4-char code. The exact code must be echoed back (as `confirm_code`) for the
+# real action to run. A cancel keyword or any wrong code aborts and clears the pending
+# challenge.
+
+# Destructive tools that ALWAYS require an explicit confirmation code before they run.
+
+import winreg
+
+def set_power_mode(mode: str) -> str:
+    mapping = {
+        'power saver': 'a1841308-3541-4fab-bc81-f71556f20b4a',
+        'balanced': '381b4222-f694-41f0-9685-ff5bb260df2e',
+        'high performance': '8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c',
+    }
+    guid = mapping.get(mode.strip().lower())
+    if not guid:
+        return f"Unsupported power mode: {mode}"
+    subprocess.run(["powercfg", "/setactive", guid], check=False, capture_output=True)
+    return f"Set power mode to {mode}"
+
+def set_dark_mode(enabled: bool) -> str:
+    if sys.platform != 'win32':
+        return "Dark mode control is Windows-only"
+    value = 0 if enabled else 1
+    try:
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize") as key:
+            winreg.SetValueEx(key, "AppsUseLightTheme", 0, winreg.REG_DWORD, value)
+            winreg.SetValueEx(key, "SystemUsesLightTheme", 0, winreg.REG_DWORD, value)
+        return f"{'Enabled' if enabled else 'Disabled'} dark mode"
+    except Exception as e:
+        return f"Failed to set dark mode: {e}"
+
+def open_night_light_settings() -> str:
+    if sys.platform != 'win32':
+        return "Night light settings are Windows-only"
+    os.startfile("ms-settings:display")
+    return "Opened Windows display settings for night light"
+
+def lock_pc() -> str:
+    import ctypes
+    ctypes.windll.user32.LockWorkStation()
+    return "Locked the workstation"
+
+def leetcode_action(action: str, query: str = None) -> str:
+    try:
+        from jarvis.core import leetcode
+        from pathlib import Path
+        tracker = leetcode.LeetcodeTracker(Path('jarvis_state.json'))
+        if action == 'status':
+            return json.dumps(tracker.status())
+        elif action == 'daily':
+            return json.dumps(tracker.get_daily())
+        elif action == 'revision':
+            return json.dumps(tracker.get_due_revisions())
+        elif action == 'solved':
+            if not query: return 'Missing query for solved'
+            return json.dumps(tracker.mark_solved(query))
+        elif action == 'open':
+            if not query: return 'Missing query for open'
+            return json.dumps(tracker.open_problem(query))
+    except Exception as e:
+        return f"Leetcode action failed: {e}"
+
+PROTECTED_TOOLS = {
+    "delete_path": "delete a file or folder",
+    "shutdown_pc": "shut down the PC",
+    "restart_pc": "restart the PC",
+    "sleep_pc": "put the PC to sleep",
+}
+
+# Flags for the "soft" destructive categories below.
+CONFIRM_WRITE_OVERWRITE = True  # writing an EXISTING file overwrites it -> confirm
+CONFIRM_SHELL = True            # any terminal/shell command -> confirm
+
+# code (uppercase) -> {"tool": <name>, "args": <args dict>}
+_PENDING_CONFIRMATIONS: Dict[str, dict] = {}
+
+_CANCEL_KEYWORDS = {"cancel", "no", "abort", "stop", "never mind", "nevermind"}
+
+
+def request_confirmation(tool_name: str, args: Dict[str, Any]) -> Dict[str, Any]:
+    """Mint a random 4-char code and store a pending challenge for `tool_name`."""
+    alphabet = string.ascii_uppercase + string.digits
+    code = "".join(secrets.choice(alphabet) for _ in range(4))
+    _PENDING_CONFIRMATIONS[code] = {"tool": tool_name, "args": dict(args)}
+    return {
+        "confirmation_required": True,
+        "code": code,
+        "tool": tool_name,
+        "args_preview": str(args)[:200],
+    }
+
+
+def check_confirmation(code: str) -> Dict[str, Any] | None:
+    """Return the pending action for a matching code and clear it, else None."""
+    if not code:
+        return None
+    code = code.strip().upper()
+    return _PENDING_CONFIRMATIONS.pop(code, None)
+
+
+def _is_cancel(code: Any, args: Dict[str, Any]) -> bool:
+    """True when the user supplied an explicit cancel signal."""
+    if isinstance(code, str) and code.strip().lower() in _CANCEL_KEYWORDS:
+        return True
+    if isinstance(args, dict) and args.get("cancel") in (True, "true", "yes", 1):
+        return True
+    return False
+
+
+# ── Destructive tool implementations (gated by the confirmation flow) ──
+
+def delete_path(path: str, confirm: bool = False) -> str:
+    """Deletes a file or folder. For real deletion, set confirm=True (done by the gate)."""
+    try:
+        if not path:
+            return "Error: No path provided to delete."
+        if not confirm:
+            return "Error: delete_path requires an explicit confirmation."
+        if os.path.isdir(path):
+            shutil.rmtree(path)
+            return f"Deleted directory: {path}"
+        elif os.path.isfile(path):
+            os.remove(path)
+            return f"Deleted file: {path}"
+        else:
+            return f"Error: Path not found: {path}"
+    except Exception as e:
+        return f"Failed to delete '{path}': {e}"
+
+
+def shutdown_pc() -> str:
+    """Shuts the PC down (gated behind confirmation)."""
+    try:
+        subprocess.run("shutdown /s /t 1", shell=True, capture_output=True, text=True)
+        return "Shutting down the PC..."
+    except Exception as e:
+        return f"Failed to shut down: {e}"
+
+
+def restart_pc() -> str:
+    """Restarts the PC (gated behind confirmation)."""
+    try:
+        subprocess.run("shutdown /r /t 1", shell=True, capture_output=True, text=True)
+        return "Restarting the PC..."
+    except Exception as e:
+        return f"Failed to restart: {e}"
+
+
+def sleep_pc() -> str:
+    """Puts the PC to sleep / standby (gated behind confirmation)."""
+    try:
+        subprocess.run(
+            "rundll32.exe powrprof.dll,SetSuspendState 0,1,0",
+            shell=True, capture_output=True, text=True,
+        )
+        return "Putting the PC to sleep..."
+    except Exception as e:
+        return f"Failed to sleep: {e}"
+
+
 # ── Tool Definitions for Groq ────────────────────────────────────────
 
 GROQ_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "control_mouse_and_keyboard",
+            "description": "Simulate mouse and keyboard actions to control the operating system natively.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "enum": ["click", "type", "press", "hotkey"], "description": "The action to perform."},
+                    "x": {"type": "integer", "description": "X coordinate for click."},
+                    "y": {"type": "integer", "description": "Y coordinate for click."},
+                    "text": {"type": "string", "description": "Text to type."},
+                    "key": {"type": "string", "description": "Key or hotkey to press (e.g. 'enter', 'ctrl+c')."}
+                },
+                "required": ["action"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "take_screenshot",
+            "description": "Takes a screenshot of the current screen.",
+            "parameters": {"type": "object", "properties": {}}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "read_file",
+            "description": "Reads the text contents of a file.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Absolute or relative path to the file."}
+                },
+                "required": ["path"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_directory",
+            "description": "Lists the contents of a directory.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Path to the directory."}
+                },
+                "required": ["path"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "write_file",
+            "description": "Creates or overwrites a file with the specified content.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Path to the file."},
+                    "content": {"type": "string", "description": "The full text content to write."}
+                },
+                "required": ["path", "content"]
+            }
+        }
+    },
     {
         "type": "function",
         "function": {
@@ -987,13 +1401,243 @@ GROQ_TOOLS = [
                 "required": ["name", "description", "python_code", "schema_json"]
             }
         }
+    },
+    # ── Previously orphaned tool schemas (now registered) ────────────
+    {
+        "type": "function",
+        "function": {
+            "name": "mouse_click",
+            "description": "Clicks the mouse at the specified coordinates (or current location if omitted). Use this to interact with UI elements you see.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "x": {"type": "integer", "description": "X coordinate on screen."},
+                    "y": {"type": "integer", "description": "Y coordinate on screen."},
+                    "button": {"type": "string", "enum": ["left", "right", "middle"], "description": "Which mouse button to click. Default is 'left'."},
+                    "double": {"type": "boolean", "description": "Set to true to double-click."}
+                }
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "keyboard_type",
+            "description": "Types the exact given string of text sequentially.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "text": {"type": "string", "description": "The text to type out."},
+                    "interval": {"type": "number", "description": "Seconds between key presses. Default is 0.0."}
+                },
+                "required": ["text"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "keyboard_press",
+            "description": "Presses a single key or combination (e.g. 'enter', 'ctrl+v', 'alt+f4', 'win+d').",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "keys": {"type": "string", "description": "The key string to press."}
+                },
+                "required": ["keys"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "read_file",
+            "description": "Reads the text contents of a file.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Absolute or relative path to the file."}
+                },
+                "required": ["path"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_directory",
+            "description": "Lists the contents of a directory.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Path to the directory."}
+                },
+                "required": ["path"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "write_file",
+            "description": "Creates or overwrites a file with the specified content. Overwriting an existing file requires confirmation.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Path to the file."},
+                    "content": {"type": "string", "description": "The full text content to write."}
+                },
+                "required": ["path", "content"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "replace_file_content",
+            "description": "Replaces an exact target string with a replacement string inside an existing file. Modifying an existing file requires confirmation.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Path to the file."},
+                    "target": {"type": "string", "description": "The exact string to find and replace."},
+                    "replacement": {"type": "string", "description": "The new string to insert."}
+                },
+                "required": ["path", "target", "replacement"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_codebase",
+            "description": "Performs a semantic search across the entire codebase to find relevant code snippets or files.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "The search query (e.g. 'authentication logic', 'where is the websocket defined')."}
+                },
+                "required": ["query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "run_terminal_command",
+            "description": "Executes a bash/shell command in the workspace directory and returns its output (stdout/stderr). Requires confirmation.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "command": {"type": "string", "description": "The exact shell command to execute."}
+                },
+                "required": ["command"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "control_mouse_and_keyboard",
+            "description": "Simulate mouse and keyboard actions to control the operating system natively.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "enum": ["click", "type", "press", "hotkey"], "description": "The action to perform."},
+                    "x": {"type": "integer", "description": "X coordinate for click."},
+                    "y": {"type": "integer", "description": "Y coordinate for click."},
+                    "text": {"type": "string", "description": "Text to type."},
+                    "key": {"type": "string", "description": "Key or hotkey to press (e.g. 'enter', 'ctrl+c')."}
+                },
+                "required": ["action"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_background_task",
+            "description": "Spawns a background worker thread to execute long-running cross-app orchestration tasks without blocking the main event loop.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "task_description": {"type": "string", "description": "The description of the long-running task to execute."}
+                },
+                "required": ["task_description"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "check_task_status",
+            "description": "Checks the status of a background task.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "task_id": {"type": "string", "description": "The task ID."}
+                },
+                "required": ["task_id"]
+            }
+        }
+    },
+    # ── Protected (destructive) tool schemas ─────────────────────────
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_path",
+            "description": "Deletes a file or folder. DESTRUCTIVE: requires an explicit confirmation code before it runs.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Absolute or relative path to the file or folder to delete."}
+                },
+                "required": ["path"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "shutdown_pc",
+            "description": "Shuts the PC down. DESTRUCTIVE: requires an explicit confirmation code before it runs.",
+            "parameters": {"type": "object", "properties": {}}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "restart_pc",
+            "description": "Restarts the PC. DESTRUCTIVE: requires an explicit confirmation code before it runs.",
+            "parameters": {"type": "object", "properties": {}}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "sleep_pc",
+            "description": "Puts the PC to sleep / standby. DESTRUCTIVE: requires an explicit confirmation code before it runs.",
+            "parameters": {"type": "object", "properties": {}}
+        }
     }
 ]
 
 
-def execute_tool(name: str, args: Dict[str, Any]) -> str:
-    """Dispatcher to execute a tool by name."""
+def _dispatch_tool(name: str, args: Dict[str, Any]) -> str:
+    """Core dispatcher. Assumes any confirmation gate has already been cleared."""
     if name == "get_system_stats":
+        return get_system_stats()
+    elif name == "set_power_mode":
+        return set_power_mode(args.get("mode", ""))
+    elif name == "set_dark_mode":
+        return set_dark_mode(args.get("enabled", True))
+    elif name == "open_night_light_settings":
+        return open_night_light_settings()
+    elif name == "lock_pc":
+        return lock_pc()
+    elif name == "leetcode_action":
+        return leetcode_action(args.get("action", ""), args.get("query"))
+
         return get_system_stats()
     elif name == "execute_terminal_command":
         return execute_terminal_command(args.get("command", ""))
@@ -1042,18 +1686,103 @@ def execute_tool(name: str, args: Dict[str, Any]) -> str:
         return keyboard_type(args.get("text", ""), args.get("interval", 0.0))
     elif name == "keyboard_press":
         return keyboard_press(args.get("keys", ""))
+    elif name == "read_file":
+        return read_file(args.get("path", ""))
+    elif name == "list_directory":
+        return list_directory(args.get("path", ""))
+    elif name == "write_file":
+        return write_file(args.get("path", ""), args.get("content", ""))
+    elif name == "replace_file_content":
+        return replace_file_content(args.get("path", ""), args.get("target", ""), args.get("replacement", ""))
+    elif name == "search_codebase":
+        return search_codebase(args.get("query", ""))
+    elif name == "run_terminal_command":
+        return run_terminal_command(args.get("command", ""))
+    elif name == "control_mouse_and_keyboard":
+        return control_mouse_and_keyboard(
+            args.get("action", ""),
+            args.get("x"),
+            args.get("y"),
+            args.get("text"),
+            args.get("key")
+        )
+    elif name == "create_background_task":
+        return create_background_task(args.get("task_description", ""))
+    elif name == "check_task_status":
+        return check_task_status(args.get("task_id", ""))
+    elif name == "delete_path":
+        return delete_path(args.get("path", ""), confirm=True)
+    elif name == "shutdown_pc":
+        return shutdown_pc()
+    elif name == "restart_pc":
+        return restart_pc()
+    elif name == "sleep_pc":
+        return sleep_pc()
     else:
         # Try loading dynamically from dynamic_tools.py
         try:
-            import dynamic_tools
+            from jarvis.core import dynamic_tools
             importlib.reload(dynamic_tools)
             if hasattr(dynamic_tools, name):
                 func = getattr(dynamic_tools, name)
                 return str(func(**args))
         except Exception as e:
             return f"Error executing dynamic tool '{name}': {e}"
-            
+
         return f"Error: Tool '{name}' not found."
+
+
+def execute_tool(name: str, args: Dict[str, Any], confirm_code: str | None = None) -> str | dict:
+    """Dispatcher to execute a tool by name, gated by the confirmation flow.
+
+    - Destructive/protected tools (e.g. delete_path, shutdown_pc) and "soft"
+      destructive ops (file overwrite, shell commands) never run on the first call.
+      They return a `confirmation_required` challenge dict with a random `code`.
+    - If `confirm_code` matches the pending code for this exact tool, the real
+      action runs. A cancel keyword or any wrong code clears the pending challenge
+      and returns `{"status": "cancelled"}`.
+    - All other (non-destructive) tools run exactly as before.
+    """
+    args = dict(args or {})
+    # Allow confirm_code to ride inside args (LLM-friendly) as well as be passed
+    # explicitly as a kwarg. Pop both control keys so they never reach the real tool.
+    if confirm_code is None:
+        confirm_code = args.pop("confirm_code", None)
+    args.pop("cancel", None)
+    norm = (name or "").strip().lower()
+
+    # Decide whether this call needs a confirmation gate.
+    requires_confirm = False
+    if norm in PROTECTED_TOOLS:
+        requires_confirm = True
+    elif norm in ("write_file", "replace_file_content") and CONFIRM_WRITE_OVERWRITE:
+        if os.path.exists(str(args.get("path", ""))):
+            requires_confirm = True
+    elif norm in ("execute_terminal_command", "run_terminal_command") and CONFIRM_SHELL:
+        requires_confirm = True
+
+    if requires_confirm:
+        # Explicit cancel (or cancel keyword) -> abort and forget any pending code.
+        if _is_cancel(confirm_code, args):
+            for code, pending in list(_PENDING_CONFIRMATIONS.items()):
+                if pending["tool"] == norm:
+                    _PENDING_CONFIRMATIONS.pop(code, None)
+            return {"status": "cancelled"}
+
+        # A code was supplied: if it matches the pending challenge for this tool,
+        # run the real action; otherwise abort.
+        if confirm_code:
+            pending = check_confirmation(confirm_code)
+            if pending is not None and pending["tool"] == norm:
+                return _dispatch_tool(norm, pending["args"])
+            return {"status": "cancelled"}
+
+        # First (ungated) call -> issue the challenge. Do NOT execute.
+        return request_confirmation(norm, args)
+
+    # Non-gated tools run unchanged.
+    return _dispatch_tool(norm, args)
+
 
 def mouse_click(x: int = None, y: int = None, button: str = "left", double: bool = False) -> str:
     """Clicks the mouse at a specific coordinate or current location."""
@@ -1101,49 +1830,332 @@ def keyboard_press(keys: str) -> str:
     except Exception as e:
         return f"Keyboard press failed: {e}"
 
-    {
-        "type": "function",
-        "function": {
-            "name": "mouse_click",
-            "description": "Clicks the mouse at the specified coordinates (or current location if omitted). Use this to interact with UI elements you see.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "x": {"type": "integer", "description": "X coordinate on screen."},
-                    "y": {"type": "integer", "description": "Y coordinate on screen."},
-                    "button": {"type": "string", "enum": ["left", "right", "middle"], "description": "Which mouse button to click. Default is 'left'."},
-                    "double": {"type": "boolean", "description": "Set to true to double-click."}
-                }
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "keyboard_type",
-            "description": "Types the exact given string of text sequentially.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "text": {"type": "string", "description": "The text to type out."},
-                    "interval": {"type": "number", "description": "Seconds between key presses. Default is 0.0."}
-                },
-                "required": ["text"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "keyboard_press",
-            "description": "Presses a single key or combination (e.g. 'enter', 'ctrl+v', 'alt+f4', 'win+d').",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "keys": {"type": "string", "description": "The key string to press."}
-                },
-                "required": ["keys"]
-            }
-        }
-    },
+def read_file(path: str, max_lines: int = 500) -> str:
+    """Reads the contents of a file."""
+    try:
+        if not os.path.exists(path):
+            return f"Error: File '{path}' not found."
+        with open(path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+            
+        if len(lines) > max_lines:
+            truncated = "".join(lines[:max_lines])
+            return truncated + f"\n... (File truncated, showing first {max_lines} lines of {len(lines)})"
+        return "".join(lines)
+    except Exception as e:
+        return f"Failed to read file: {e}"
 
+def list_directory(path: str) -> str:
+    """Lists files and folders in a directory."""
+    try:
+        if not os.path.exists(path):
+            return f"Error: Directory '{path}' not found."
+        if not os.path.isdir(path):
+            return f"Error: '{path}' is not a directory."
+            
+        items = os.listdir(path)
+        result = []
+        for item in items:
+            full_path = os.path.join(path, item)
+            if os.path.isdir(full_path):
+                result.append(f"[DIR]  {item}")
+            else:
+                result.append(f"[FILE] {item}")
+        return "\n".join(result) if result else "(Empty directory)"
+    except Exception as e:
+        return f"Failed to list directory: {e}"
+
+def write_file(path: str, content: str) -> str:
+    """Creates or overwrites a file with new content."""
+    try:
+        # Create directory if it doesn't exist
+        os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+        return f"Successfully wrote to {path}"
+    except Exception as e:
+        return f"Failed to write file: {e}"
+
+def replace_file_content(path: str, target: str, replacement: str) -> str:
+    """Replaces specific string content in a file."""
+    try:
+        if not os.path.exists(path):
+            return f"Error: File '{path}' not found."
+            
+        with open(path, "r", encoding="utf-8") as f:
+            content = f.read()
+            
+        if target not in content:
+            return f"Error: Target string not found in {path}"
+            
+        new_content = content.replace(target, replacement)
+        
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(new_content)
+            
+        return f"Successfully replaced content in {path}"
+    except Exception as e:
+        return f"Failed to replace file content: {e}"
+
+def index_workspace() -> str:
+    """Indexes all python and js files in the project workspace into ChromaDB."""
+    if chroma_client is None:
+        return "ChromaDB not initialized."
+    try:
+        collection = chroma_client.get_or_create_collection(name="workspace_code")
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        
+        # Gather files
+        patterns = ["**/*.py", "**/*.js", "**/*.html", "**/*.css"]
+        all_files = []
+        for pattern in patterns:
+            all_files.extend(glob.glob(os.path.join(base_dir, pattern), recursive=True))
+            
+        docs = []
+        metadatas = []
+        ids = []
+        
+        for file_path in all_files:
+            # Skip virtual envs and chroma memory
+            if ".venv" in file_path or "chroma_memory" in file_path or "__pycache__" in file_path:
+                continue
+                
+            try:
+                with open(file_path, "r", encoding="utf-8") as file:
+                    file_content = file.read()
+                    if file_content.strip():
+                        docs.append(file_content)
+                        metadatas.append({"path": file_path})
+                        ids.append(file_path)
+            except Exception:
+                pass
+                
+        if docs:
+            # Simple batching to avoid exceeding max batch size
+            batch_size = 100
+            for i in range(0, len(docs), batch_size):
+                collection.upsert(
+                    documents=docs[i:i+batch_size],
+                    metadatas=metadatas[i:i+batch_size],
+                    ids=ids[i:i+batch_size]
+                )
+        return f"Successfully indexed {len(docs)} files in the workspace."
+    except Exception as e:
+        return f"Failed to index workspace: {e}"
+
+def search_codebase(query: str, n_results: int = 3) -> str:
+    """Searches the codebase for relevant code snippets using semantic search."""
+    if chroma_client is None:
+        return "ChromaDB not initialized."
+    try:
+        collection = chroma_client.get_or_create_collection(name="workspace_code")
+        if collection.count() == 0:
+            # Automatically index if empty
+            index_workspace()
+            
+        if collection.count() == 0:
+            return "Workspace is empty."
+            
+        actual_n = min(n_results, collection.count())
+        results = collection.query(
+            query_texts=[query],
+            n_results=actual_n
+        )
+        
+        output = []
+        for doc, meta in zip(results['documents'][0], results['metadatas'][0]):
+            path = meta.get("path", "Unknown")
+            output.append(f"--- File: {path} ---\n{doc[:1000]}...\n")
+            
+        return "\n".join(output)
+    except Exception as e:
+        return f"Search failed: {e}"
+
+import subprocess
+import threading
+
+def run_terminal_command(command: str, timeout_seconds: int = 15) -> str:
+    """Runs a shell command and returns the stdout and stderr."""
+    try:
+        # Security constraints: Prevent highly destructive commands if desired
+        dangerous_keywords = ['rm -rf /', 'format', 'mkfs']
+        if any(keyword in command for keyword in dangerous_keywords):
+            return "Command rejected for safety reasons."
+            
+        process = subprocess.Popen(
+            command,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            cwd=os.path.dirname(os.path.dirname(os.path.dirname(__file__))) # Run at workspace root
+        )
+        
+        try:
+            stdout, stderr = process.communicate(timeout=timeout_seconds)
+            
+            output = ""
+            if stdout:
+                output += f"STDOUT:\n{stdout}\n"
+            if stderr:
+                output += f"STDERR:\n{stderr}\n"
+                
+            if process.returncode != 0:
+                output += f"\nProcess exited with error code {process.returncode}"
+                
+            if not output:
+                output = "Command executed successfully with no output."
+                
+            # Truncate output to prevent token overflow
+            max_len = 2000
+            if len(output) > max_len:
+                return output[:max_len] + f"\n... (Output truncated by {len(output)-max_len} chars)"
+            return output
+            
+        except subprocess.TimeoutExpired:
+            process.kill()
+            stdout, stderr = process.communicate()
+            return f"Command timed out after {timeout_seconds} seconds.\nSTDOUT: {stdout}\nSTDERR: {stderr}"
+            
+    except Exception as e:
+        return f"Failed to execute command: {e}"
+
+import pyautogui
+
+def control_mouse_and_keyboard(action: str, x: int = None, y: int = None, text: str = None, key: str = None) -> str:
+    """Simulates mouse clicks and keyboard presses."""
+    try:
+        if action == "click":
+            if x is not None and y is not None:
+                pyautogui.click(x, y)
+                return f"Clicked at ({x}, {y})"
+            else:
+                pyautogui.click()
+                return "Clicked at current location"
+        elif action == "type":
+            if text:
+                pyautogui.write(text, interval=0.01)
+                return f"Typed: {text}"
+            return "No text provided to type."
+        elif action == "press":
+            if key:
+                pyautogui.press(key)
+                return f"Pressed key: {key}"
+            return "No key provided to press."
+        elif action == "hotkey":
+            if key:
+                keys = key.split('+')
+                pyautogui.hotkey(*keys)
+                return f"Pressed hotkey: {key}"
+            return "No hotkey provided."
+        else:
+            return "Unknown action."
+    except Exception as e:
+        return f"Failed to control OS: {e}"
+
+import uuid
+import threading
+import time
+
+background_tasks = {}
+
+def execute_task(task_id, task_description):
+    background_tasks[task_id] = "Running"
+    # Here we would normally spawn a sub-agent to do the work.
+    # For now, we simulate work
+    time.sleep(10)
+    background_tasks[task_id] = "Completed"
+
+def create_background_task(task_description: str) -> str:
+    """Creates a background task for long-running orchestration."""
+    try:
+        task_id = str(uuid.uuid4())
+        thread = threading.Thread(target=execute_task, args=(task_id, task_description), daemon=True)
+        thread.start()
+        return f"Background task '{task_id}' started for: {task_description}"
+    except Exception as e:
+        return f"Failed to start task: {e}"
+
+def check_task_status(task_id: str) -> str:
+    """Checks the status of a background task."""
+    return background_tasks.get(task_id, "Task ID not found.")
+
+
+
+def capture_screen() -> str | None:
+    """Takes a screenshot, resizes it for efficiency, and returns it as a base64 string."""
+    try:
+        import mss
+        from PIL import Image
+        import io
+        import base64
+        
+        with mss.mss() as sct:
+            monitor = sct.monitors[1]  # primary monitor
+            sct_img = sct.grab(monitor)
+            img = Image.frombytes('RGB', sct_img.size, sct_img.bgra, 'raw', 'BGRX')
+            
+            # Resize for LLM processing efficiency
+            img.thumbnail((1024, 1024))
+            
+            buffered = io.BytesIO()
+            img.save(buffered, format='JPEG', quality=70)
+            img_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
+            return f"data:image/jpeg;base64,{img_str}"
+    except Exception as e:
+        print(f"[JARVIS] Screenshot error: {e}")
+        return None
+
+
+def analyze_image(base64_image_data_uri: str) -> str:
+    """Sends a base64 image data URI to Groq Vision model and returns a summary."""
+    try:
+        from jarvis.core.server import GROQ_KEY
+        import requests
+        
+        if not GROQ_KEY:
+            return "Vision analysis unavailable: No Groq API Key."
+            
+        url = 'https://api.groq.com/openai/v1/chat/completions'
+        headers = {
+            'Authorization': f'Bearer {GROQ_KEY}',
+            'Content-Type': 'application/json'
+        }
+        
+        # Groq expects the base64 string to be prefixed with data:image/jpeg;base64,
+        data = {
+            'model': 'qwen/qwen3.6-27b',
+            'messages': [
+                {
+                    'role': 'user',
+                    'content': [
+                        {
+                            'type': 'text',
+                            'text': 'Describe what the user is currently doing on their screen in 1-2 short sentences. Focus on the main activity, application, or content.'
+                        },
+                        {
+                            'type': 'image_url',
+                            'image_url': {
+                                'url': base64_image_data_uri
+                            }
+                        }
+                    ]
+                }
+            ],
+            'temperature': 0.1,
+            'max_tokens': 100
+        }
+        
+        response = requests.post(url, headers=headers, json=data)
+        res = response.json()
+        if 'error' in res:
+            print(f"[JARVIS] Vision API Error: {res['error']}")
+            return "Vision analysis failed."
+            
+        content = res['choices'][0]['message']['content']
+        import re
+        content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
+        return content
+    except Exception as e:
+        print(f"[JARVIS] Analyze image error: {e}")
+        return f"Vision error: {e}"

@@ -45,12 +45,8 @@ def main():
     server_thread = threading.Thread(target=start_server, daemon=True)
     server_thread.start()
 
-    # 2. Register Global Hotkey (Ctrl + Space)
-    print("Registering global hotkey: Ctrl + Space")
-    try:
-        keyboard.add_hotkey('ctrl+space', trigger_jarvis)
-    except Exception as e:
-        print(f"Failed to register hotkey: {e}")
+    # 2. Register Global Hotkey (Disabled)
+    # keyboard.add_hotkey('ctrl+space', trigger_jarvis)
 
     # 3. Create System Tray Icon
     print("Jarvis is now running in the background (System Tray).")

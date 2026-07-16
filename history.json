@@ -1,5 +1,252 @@
 [
   {
+    "id": "20260712_155753",
+    "date": "2026-07-12 15:58",
+    "preview": "hello jarvis...",
+    "messages": [
+      {
+        "role": "user",
+        "content": "hello jarvis"
+      }
+    ]
+  },
+  {
+    "id": "20260712_154744",
+    "date": "2026-07-12 15:47",
+    "preview": "My favorite food is sushi....",
+    "messages": [
+      {
+        "role": "user",
+        "content": "My favorite food is sushi."
+      },
+      {
+        "role": "user",
+        "content": "Open lead code"
+      },
+      {
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "id": "sx3ph8vak",
+            "type": "function",
+            "function": {
+              "name": "store_memory",
+              "arguments": "{\"fact\":\"User prefers sushi as their favorite food.\"}"
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "content": "Successfully stored memory: 'User prefers sushi as their favorite food.'",
+        "tool_call_id": "sx3ph8vak"
+      },
+      {
+        "role": "assistant",
+        "content": "I've taken note that sushi is your favorite food, sir. I'll keep this in mind for any future conversations about cuisine."
+      },
+      {
+        "role": "user",
+        "content": "Open leet code"
+      }
+    ]
+  },
+  {
+    "id": "20260712_154651",
+    "date": "2026-07-12 15:47",
+    "preview": "My favorite food is sushi....",
+    "messages": [
+      {
+        "role": "user",
+        "content": "My favorite food is sushi."
+      }
+    ]
+  },
+  {
+    "id": "20260712_105640",
+    "date": "2026-07-12 10:56",
+    "preview": "open github...",
+    "messages": [
+      {
+        "role": "user",
+        "content": "open github"
+      },
+      {
+        "role": "assistant",
+        "content": "Opening github."
+      }
+    ]
+  },
+  {
+    "id": "20260712_090608",
+    "date": "2026-07-12 09:06",
+    "preview": "open github...",
+    "messages": [
+      {
+        "role": "user",
+        "content": "open github"
+      },
+      {
+        "role": "assistant",
+        "content": ""
+      }
+    ]
+  },
+  {
+    "id": "20260712_090505",
+    "date": "2026-07-12 09:05",
+    "preview": "open github...",
+    "messages": [
+      {
+        "role": "user",
+        "content": "open github"
+      },
+      {
+        "role": "assistant",
+        "content": ""
+      }
+    ]
+  },
+  {
+    "id": "20260712_080954",
+    "date": "2026-07-12 08:58",
+    "preview": "open next leetcode problem...",
+    "messages": [
+      {
+        "role": "user",
+        "content": "open next leetcode problem"
+      },
+      {
+        "role": "assistant",
+        "content": ""
+      },
+      {
+        "role": "user",
+        "content": "open github"
+      },
+      {
+        "role": "assistant",
+        "content": ""
+      },
+      {
+        "role": "user",
+        "content": "open github"
+      },
+      {
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "id": "yfb4zt6xb",
+            "type": "function",
+            "function": {
+              "name": "open_app",
+              "arguments": "{\"target\":\"github.com\"}"
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "content": "Opened https://github.com in browser.",
+        "tool_call_id": "yfb4zt6xb"
+      },
+      {
+        "role": "assistant",
+        "content": "GitHub has been opened in your default web browser, sir. Would you like to navigate to a specific repository or page?"
+      }
+    ]
+  },
+  {
+    "id": "20260712_071223",
+    "date": "2026-07-12 07:12",
+    "preview": "open github...",
+    "messages": [
+      {
+        "role": "user",
+        "content": "open github"
+      },
+      {
+        "role": "assistant",
+        "content": ""
+      }
+    ]
+  },
+  {
+    "id": "20260711_203844",
+    "date": "2026-07-11 20:42",
+    "preview": "Open GitHub for me...",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Open GitHub for me"
+      },
+      {
+        "role": "assistant",
+        "content": "Right away, sir. <function=open_app{\"target\": \"https://github.com\"}></function>"
+      },
+      {
+        "role": "user",
+        "content": "Open Github for me Thank you."
+      },
+      {
+        "role": "assistant",
+        "content": "You're welcome, sir. GitHub should now be open on your browser. Is there a specific repository or task you'd like to attend to on GitHub?"
+      },
+      {
+        "role": "user",
+        "content": "not open"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me try that again. <function=open_app{\"target\": \"https://github.com\"}></function> If it doesn't open, I can try opening the default web browser for you and then navigating to GitHub. Would you like me to try that, sir?"
+      }
+    ]
+  },
+  {
+    "id": "20260711_202941",
+    "date": "2026-07-11 20:30",
+    "preview": "open git hib...",
+    "messages": [
+      {
+        "role": "user",
+        "content": "open git hib"
+      },
+      {
+        "role": "assistant",
+        "content": ""
+      },
+      {
+        "role": "user",
+        "content": "which processes"
+      },
+      {
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "id": "wpb4gscr0",
+            "type": "function",
+            "function": {
+              "name": "get_system_stats",
+              "arguments": "null"
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "content": "CPU: 58.9% | RAM: 92.1% (14.1GB / 15.3GB) | NVIDIA GeForce RTX 5070 Laptop GPU (0.0% load, 0.0MB/8151.0MB) | Top processes: kilo.exe (1462MB), msedgewebview2.exe (590MB), language_server.exe (292MB)",
+        "tool_call_id": "wpb4gscr0"
+      },
+      {
+        "role": "assistant",
+        "content": "It seems there are a few resource-intensive processes running. Shall I close any of these to free up some memory, sir?"
+      }
+    ]
+  },
+  {
     "id": "20260710_231656",
     "date": "2026-07-10 23:17",
     "preview": "Say hello world....",
