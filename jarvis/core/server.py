@@ -513,11 +513,9 @@ def _fast_intent(text: str) -> dict | None:
     lowered = f" {raw.lower()} "
 
     close = any(w in lowered for w in (" close ", " quit ", " exit ", " shut down ", " turn off "))
-    search = any(w in lowered for w in (" search", "search ", " look up", "look up ", " find ", " search for", "search the web"))
     openv = any(w in lowered for w in (" open ", "open ", " launch ", "launch ", " start ", "start ", " go to ", " visit ", " watch ", " play ", " show me ", " bring up ", " take me to ", " navigate to "))
 
     if close: action = "close"
-    elif search: action = "search"
     elif openv: action = "open"
     else: return None
 
@@ -546,8 +544,6 @@ def _fast_intent(text: str) -> dict | None:
         if re.search(rf"\b{name}\b", lowered):
             if action == "close":
                 return {"response": f"I cannot close a browser tab directly, but I can reopen {name} anytime."}
-            if action == "search":
-                return {"response": f"Searching the web for {name}.", "tool": "web_search", "args": {"query": name}}
             tools.open_app(url)
             return {"response": f"Opening {name}."}
 
@@ -568,8 +564,6 @@ def _fast_intent(text: str) -> dict | None:
     url_match = re.search(r"(https?://[^\s]+)|([a-z0-9-]+\.(?:com|org|net|io|dev|edu|gov|co)\b)", lowered)
     if url_match and action in {"open", "search"}:
         url = url_match.group(0)
-        if action == "search":
-            return {"response": f"Searching the web for {url}.", "tool": "web_search", "args": {"query": url}}
         tools.open_app(url)
         return {"response": f"Opening {url}."}
 
@@ -577,7 +571,7 @@ def _fast_intent(text: str) -> dict | None:
 
 
 def _fast_intent(text: str) -> dict | None:
-    """Resolve common open/close/search requests fast to bypass LLM."""
+    """Resolve common open/close requests fast to bypass LLM."""
     import re
     from jarvis.core import tools
     
@@ -587,11 +581,9 @@ def _fast_intent(text: str) -> dict | None:
     lowered = f" {raw.lower()} "
 
     close = any(w in lowered for w in (" close ", " quit ", " exit ", " shut down ", " turn off "))
-    search = any(w in lowered for w in (" search", "search ", " look up", "look up ", " find ", " search for", "search the web"))
     openv = any(w in lowered for w in (" open ", "open ", " launch ", "launch ", " start ", "start ", " go to ", " visit ", " watch ", " play ", " show me ", " bring up ", " take me to ", " navigate to "))
 
     if close: action = "close"
-    elif search: action = "search"
     elif openv: action = "open"
     else: return None
 
@@ -620,8 +612,6 @@ def _fast_intent(text: str) -> dict | None:
         if re.search(rf"\b{name}\b", lowered):
             if action == "close":
                 return {"response": f"I cannot close a browser tab directly, but I can reopen {name} anytime."}
-            if action == "search":
-                return {"response": f"Searching the web for {name}.", "tool": "web_search", "args": {"query": name}}
             tools.open_app(url)
             return {"response": f"Opening {name}."}
 
@@ -640,10 +630,8 @@ def _fast_intent(text: str) -> dict | None:
             return {"response": f"Opening {name}."}
 
     url_match = re.search(r"(https?://[^\s]+)|([a-z0-9-]+\.(?:com|org|net|io|dev|edu|gov|co)\b)", lowered)
-    if url_match and action in {"open", "search"}:
+    if url_match and action == "open":
         url = url_match.group(0)
-        if action == "search":
-            return {"response": f"Searching the web for {url}.", "tool": "web_search", "args": {"query": url}}
         tools.open_app(url)
         return {"response": f"Opening {url}."}
 
@@ -752,8 +740,36 @@ def command(payload: CommandRequest):
 
                     resp.raise_for_status()
                 except Exception as e:
-                    yield f"data: {json.dumps({'error': f'Groq API error: {e}'})}\n\n"
-                    return
+                    # OFF-LINE FALLBACK TO OLLAMA
+                    print(f"[JARVIS] Groq API error: {e}. Falling back to Ollama.")
+                    try:
+                        print(f"[JARVIS] Using local Ollama model for fallback")
+                        resp = requests.post(
+                            "http://127.0.0.1:11434/api/chat",
+                            json={"model": "llama3.2:3b", "messages": messages, "stream": True},
+                            timeout=15
+                        )
+                        resp.raise_for_status()
+                        
+                        full_text = ""
+                        for line in resp.iter_lines():
+                            if not line: continue
+                            chunk = json.loads(line)
+                            content = chunk.get("message", {}).get("content", "")
+                            if content:
+                                full_text += content
+                                yield f"data: {json.dumps({'chunk': content})}\n\n"
+                            if chunk.get("done"): break
+                                
+                        final_text = sanitize_reply(full_text)
+                        assistant_message = {"role": "assistant", "content": final_text}
+                        conversation.append(assistant_message)
+                        save_history()
+                        yield f"data: {json.dumps({'done': True, 'model': 'llama3.2:3b'})}\n\n"
+                        return
+                    except Exception as fallback_e:
+                        yield f"data: {json.dumps({'error': f'Groq API error: {e}. Offline fallback also failed: {fallback_e}'})}\n\n"
+                        return
                     
                 tool_calls_buffer = {}
                 full_text = ""

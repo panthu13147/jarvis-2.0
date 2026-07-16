@@ -322,7 +322,7 @@ def open_app(target: str) -> str:
         try:
             from ddgs import DDGS
         except ImportError:
-            from duckduckgo_search import DDGS
+            from ddgs import DDGS
             
         with DDGS() as ddgs:
             results = list(ddgs.text(target, max_results=1))
@@ -520,7 +520,7 @@ def web_search(query: str) -> str:
         try:
             from ddgs import DDGS
         except ImportError:
-            from duckduckgo_search import DDGS
+            from ddgs import DDGS
         
         with DDGS() as ddgs:
             results = list(ddgs.text(query, max_results=5))
@@ -1247,6 +1247,23 @@ GROQ_TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "fetch_web_content",
+            "description": "Searches the web for factual answers, news, weather, or extracts text from a URL.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "The search query or URL to fetch"
+                    }
+                },
+                "required": ["query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "web_search",
             "description": "Searches the web using DuckDuckGo and returns the top 5 results with titles and snippets. Use this when the user asks you to search, look up, or find information online.",
             "parameters": {
@@ -1655,6 +1672,8 @@ def _dispatch_tool(name: str, args: Dict[str, Any]) -> str:
         return spawn_agents(args.get("task_description", ""))
     elif name == "send_email":
         return send_email(args.get("to", ""), args.get("subject", ""), args.get("body", ""))
+    elif name == "fetch_web_content":
+        return fetch_web_content(args.get("query", ""))
     elif name == "web_search":
         return web_search(args.get("query", ""))
     elif name == "get_weather":
@@ -2159,3 +2178,31 @@ def analyze_image(base64_image_data_uri: str) -> str:
     except Exception as e:
         print(f"[JARVIS] Analyze image error: {e}")
         return f"Vision error: {e}"
+
+
+def fetch_web_content(query: str) -> str:
+    """Fetches the actual text content or answers from the web for a given search query or URL."""
+    try:
+        from ddgs import DDGS
+        import urllib.request
+        from bs4 import BeautifulSoup
+        
+        # If it's a direct URL
+        if query.startswith('http://') or query.startswith('https://'):
+            req = urllib.request.Request(query, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=10) as response:
+                html = response.read()
+                soup = BeautifulSoup(html, 'html.parser')
+                text = soup.get_text(separator=' ', strip=True)
+                return text[:4000] + ('...' if len(text) > 4000 else '')
+                
+        # Otherwise, search DDG
+        with DDGS() as ddgs:
+            results = list(ddgs.text(query, max_results=3))
+            if not results:
+                return f"No results found for {query}."
+            
+            output = "\n".join([f"- {r['title']}: {r['body']}" for r in results])
+            return output
+    except Exception as e:
+        return f"Error fetching web content: {e}"
