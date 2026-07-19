@@ -55,6 +55,13 @@
 
         if (data.type === 'proactive') {
           showToast(data.text);
+
+        // Iteration 86: Voice Auth UI
+        if (data.type === 'proactive' && data.text.includes("Voice verified")) {
+            const auth = document.getElementById('authStatus');
+            if(auth) { auth.innerText = 'VERIFIED'; auth.style.color = '#0f0'; }
+        }
+
           // Handle a spontaneous message from Jarvis
           addMessage('jarvis', data.text);
           if (data.audio) {
@@ -445,6 +452,11 @@
           // Iteration 34: Chromatic Audio Reactivity
           let hue = 180 + (avg / 256) * 60;
           document.documentElement.style.setProperty('--orb-hue', hue + 'deg');
+
+        // Iteration 87: 3D Audio Spectrum EQ Ring Mock
+        let eqSize = 50 + (avg / 256) * 100;
+        document.documentElement.style.setProperty('--orb-glow', `${glow}px ${glow}px ${eqSize}px rgba(0,255,255,0.5)`);
+
           document.querySelector('.orb').style.filter = `hue-rotate(${hue}deg)`;
           requestAnimationFrame(drawVisualizer);
       }

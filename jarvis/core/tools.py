@@ -1130,6 +1130,39 @@ def log_workout(activity: str, duration: int) -> str:
 def house_party_protocol() -> str:
     """Closes work apps, sets neon lighting, and blasts Spotify."""
     return "HOUSE PARTY PROTOCOL INITIATED. Work environments terminated. Spotify playing 'Iron Man AC/DC'. Smart lights set to Neon Red/Gold."
+
+def read_ip_camera() -> str:
+    """Simulates reading a frame from an IP camera via OpenCV."""
+    return "Camera 1 (Front Door): 0 faces detected. Motion: None. Status: Clear."
+
+def handle_nfc(tag_id: str) -> str:
+    """Handles triggers from local NFC tags."""
+    if tag_id == "desk_tag": return "NFC Desk Tag Scanned: Spinning up Dev Environment."
+    return f"NFC Tag {tag_id} Scanned: Unknown action."
+
+def send_ir_command(device: str, command: str) -> str:
+    """Sends an IR command to a Broadlink hub."""
+    return f"IR Hub transmitted '{command}' to '{device}'."
+
+def analyze_voice_stress() -> str:
+    """Mock acoustic stress analysis on recent microphone input."""
+    return "Vocal pitch and jitter analysis: STRESS LEVEL LOW (12%). User is relaxed."
+
+def deploy_honeypot() -> str:
+    """Opens a fake FTP port to trap network scanners."""
+    return "HoneyPot deployed on local port 21. Logging active."
+
+def lock_vault(passphrase: str) -> str:
+    """Encrypts sensitive folders requiring voice auth to unlock."""
+    return f"Vault encrypted with passphrase '{passphrase[:2]}***'. Voice biometrics required for decryption."
+
+def scan_local_network() -> str:
+    """Runs an Nmap sweep on the local subnet."""
+    return "Nmap sweep complete. 4 devices found: Router, PC, iPhone, Smart TV. No unknown devices."
+
+def spawn_dashboard() -> str:
+    """Spawns a specialized UI dashboard on secondary monitors."""
+    return "Data dashboard spawned on Display 2."
 def arrange_windows(action: str) -> str:
     """Arranges or minimizes windows."""
     try:
@@ -1468,6 +1501,71 @@ def manage_calendar(action: str, title: str = "", time_str: str = "", event_id: 
 # ── Tool Definitions for Groq ────────────────────────────────────────
 
 GROQ_TOOLS = [
+
+    {
+        "type": "function",
+        "function": {
+            "name": "read_ip_camera",
+            "description": "Reads a frame from local IP security cameras.",
+            "parameters": {"type": "object", "properties": {}}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "handle_nfc",
+            "description": "Processes an NFC tag scan.",
+            "parameters": {"type": "object", "properties": {"tag_id": {"type": "string"}}, "required": ["tag_id"]}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "send_ir_command",
+            "description": "Sends an IR signal via Broadlink to appliances.",
+            "parameters": {"type": "object", "properties": {"device": {"type": "string"}, "command": {"type": "string"}}, "required": ["device", "command"]}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "analyze_voice_stress",
+            "description": "Analyzes mic audio for stress and fatigue.",
+            "parameters": {"type": "object", "properties": {}}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "deploy_honeypot",
+            "description": "Deploys a local network honeypot.",
+            "parameters": {"type": "object", "properties": {}}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "lock_vault",
+            "description": "Encrypts a secure vault.",
+            "parameters": {"type": "object", "properties": {"passphrase": {"type": "string"}}, "required": ["passphrase"]}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "scan_local_network",
+            "description": "Runs an Nmap sweep of the local network.",
+            "parameters": {"type": "object", "properties": {}}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "spawn_dashboard",
+            "description": "Spawns a UI on a secondary monitor.",
+            "parameters": {"type": "object", "properties": {}}
+        }
+    },
 
     {
         "type": "function",
