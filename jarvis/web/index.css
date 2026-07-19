@@ -1,0 +1,33 @@
+
+.hud-ticker { position: fixed; bottom: 0; left: 0; right: 0; height: 30px; background: rgba(10,10,15,0.8); border-top: 1px solid var(--primary); display: flex; align-items: center; padding: 0 20px; font-family: monospace; font-size: 0.75rem; color: var(--primary); z-index: 1000; }
+.hud-stat { margin-right: 20px; text-shadow: 0 0 5px var(--primary); }
+.ticker-wrap { flex-grow: 1; overflow: hidden; white-space: nowrap; }
+.ticker-text { display: inline-block; padding-left: 100%; animation: ticker 20s linear infinite; }
+@keyframes ticker { 0% { transform: translateX(0); } 100% { transform: translateX(-100%); } }
+
+
+/* Iteration 35: Mobile Responsive */
+@media (max-width: 768px) {
+  .orb-container { transform: scale(0.6); margin-top: -50px; }
+  .chat-interface { max-width: 95%; padding: 10px; }
+  .composer { flex-direction: column; }
+  .icon-btn { width: 35px; height: 35px; }
+  #visionPip { width: 100px; height: 75px; top: 10px; right: 10px; }
+}
+
+/* Iteration 33: Toast CSS */
+.toast {
+  background: rgba(10, 20, 30, 0.9);
+  border: 1px solid var(--primary);
+  color: var(--text);
+  padding: 10px 20px;
+  border-radius: 5px;
+  font-family: monospace;
+  font-size: 0.8rem;
+  box-shadow: 0 0 10px var(--primary);
+  animation: slideDown 0.3s ease-out forwards;
+}
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}

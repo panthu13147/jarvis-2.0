@@ -14,6 +14,7 @@
   const chatLog        = document.getElementById('chatLog');
   const commandInput   = document.getElementById('commandInput');
   const sendBtn        = document.getElementById('sendBtn');
+  const stopBtn        = document.getElementById('stopBtn');
   const micBtn         = document.getElementById('micBtn');
   const clearBtn = document.getElementById('clearBtn');
   const transcriptText = document.getElementById('transcriptText');
@@ -35,7 +36,25 @@
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
+        
+        // Iteration 58: Swarm WebSockets
+        if (data.type === 'swarm') {
+            const swarmList = document.getElementById('swarmList');
+            if (swarmList) swarmList.innerHTML = `[${data.agent}] ${data.status}`;
+            showToast(`Swarm Agent ${data.agent}: ${data.status}`);
+        }
+        
+        // Iteration 63: Sentiment Color Mapping
+        if (data.type === 'transcript' || data.type === 'chunk') {
+            if (data.sentiment === 'positive') {
+                document.documentElement.style.setProperty('--orb-hue', '120deg'); // Green
+            } else if (data.sentiment === 'negative') {
+                document.documentElement.style.setProperty('--orb-hue', '0deg'); // Red
+            }
+        }
+
         if (data.type === 'proactive') {
+          showToast(data.text);
           // Handle a spontaneous message from Jarvis
           addMessage('jarvis', data.text);
           if (data.audio) {
@@ -56,11 +75,15 @@
         } else if (data.type === 'transcript') {
           // Handle the completed transcript from the audio stream
           if (data.text) {
-             processCommand(data.text, true);
-          } else {
-             transcriptText.textContent = 'Say something or type a command...';
-             setOrbMode('listening');
+            updateLiveTranscript(data.text);
+            if (data.is_final) {
+              setOrbMode('processing');
+              isProcessing = true;
+            }
           }
+        } else if (data.type === 'system_stats_update') {
+          if (hudCpu) hudCpu.textContent = `CPU: ${data.cpu}%`;
+          if (hudRam) hudRam.textContent = `RAM: ${data.ram}%`;
         } else if (data.type === 'chunk') {
           // Handle streaming chunk from a command
           if (currentMsgElement) {
@@ -398,6 +421,35 @@
       micAnalyser.fftSize = 256;
       micSource.connect(micAnalyser);
 
+      
+      // Iteration 11: True Audio Visualizer
+      analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+      
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+      
+      function drawVisualizer() {
+          if (!isRecording) return;
+          analyser.getByteFrequencyData(dataArray);
+          let sum = 0;
+          for (let i = 0; i < bufferLength; i++) {
+              sum += dataArray[i];
+          }
+          let avg = sum / bufferLength;
+          let scale = 1 + (avg / 256) * 0.5;
+          let glow = 20 + (avg / 256) * 40;
+          document.documentElement.style.setProperty('--orb-scale', scale);
+          document.documentElement.style.setProperty('--orb-glow', glow + 'px');
+          // Iteration 34: Chromatic Audio Reactivity
+          let hue = 180 + (avg / 256) * 60;
+          document.documentElement.style.setProperty('--orb-hue', hue + 'deg');
+          document.querySelector('.orb').style.filter = `hue-rotate(${hue}deg)`;
+          requestAnimationFrame(drawVisualizer);
+      }
+      drawVisualizer();
+
       mediaRecorder = new MediaRecorder(stream, {
         mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
           ? 'audio/webm;codecs=opus'
@@ -479,6 +531,7 @@
   async function processTTSQueue() {
     if (isPlayingAudio || ttsQueue.length === 0) return;
     isPlayingAudio = true;
+    if (stopBtn) stopBtn.style.display = 'inline-flex';
     
     while (ttsQueue.length > 0) {
       const sentence = ttsQueue.shift();
@@ -497,11 +550,12 @@
           await playAudioChunk(wavBuffer);
         }
       } catch (e) {
-        console.warn("TTS failed for sentence", e);
+        console.error('Error in TTS queue processing:', e);
       }
     }
     
     isPlayingAudio = false;
+    if (stopBtn) stopBtn.style.display = 'none';
     if (!isProcessing) {
       if (isMicActive) {
         setOrbMode('listening');
@@ -672,13 +726,59 @@
 
   // ══════════════════════════════════════════════════════════════
   //  Event listeners
-  // ══════════════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════════  // Bind manual send button
   sendBtn.addEventListener('click', () => processCommand(commandInput.value));
+  
+  if (stopBtn) {
+      stopBtn.addEventListener('click', () => {
+          stopAudio();
+          ttsQueue = [];
+          isPlayingAudio = false;
+          stopBtn.style.display = 'none';
+          appendMessage('JARVIS', 'Playback interrupted by user.');
+          if (!isProcessing) {
+              setOrbMode(isMicActive ? 'listening' : 'standby');
+          }
+      });
+  }
 
-  commandInput.addEventListener('keydown', (e) => {
+  // Handle enter key in input
+  commandInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       processCommand(commandInput.value);
+    }
+  });
+
+  // ══════════════════════════════════════════════════════════════
+  //  HUD & Ticker Logic
+  // ══════════════════════════════════════════════════════════════
+  const hudCpu = document.getElementById('hudCpu');
+  const hudRam = document.getElementById('hudRam');
+  const tickerText = document.getElementById('tickerText');
+  
+  const hints = [
+      "Tip: Say 'Identify my displays' to manage monitors.",
+      "Tip: Say 'Toggle WiFi off' to disable internet.",
+      "Tip: Say 'Read my emails' to check your inbox.",
+      "Tip: Say 'Add task: buy groceries' to manage your todo list.",
+      "Tip: Try interrupting me while I'm speaking.",
+      "System: Jarvis MK II operational.",
+      "Network: Secure connection established.",
+  ];
+  let hintIndex = 0;
+  setInterval(() => {
+      tickerText.textContent = hints[hintIndex];
+      hintIndex = (hintIndex + 1) % hints.length;
+  }, 10000); // cycle every 10 seconds
+
+  // Request system stats every 5 seconds
+  setInterval(() => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'get_system_stats' }));
+      }
+  }, 5000);
+
     } else if (e.key === 'ArrowUp' && commandHistory.length > 0) {
       e.preventDefault();
       if (historyIndex > 0) historyIndex--;
@@ -709,11 +809,6 @@
         transcriptText.textContent = 'Say something or type a command...';
       }
       return;
-    }
-    // Space to toggle mic (only when not typing in input)
-    if (e.code === 'Space' && document.activeElement !== commandInput) {
-      e.preventDefault();
-      micBtn.click();
     }
   });
 
@@ -813,6 +908,21 @@
   settingsBtn.addEventListener('click', () => settingsModal.classList.add('active'));
   closeSettingsBtn.addEventListener('click', () => settingsModal.classList.remove('active'));
   
+  
+  // Iteration 14: Wake Word Toggle
+  const wakeWordToggle = document.getElementById('wakeWordToggle');
+  if (wakeWordToggle) {
+    wakeWordToggle.checked = localStorage.getItem('jarvis_wakeword') === 'true';
+    wakeWordToggle.addEventListener('change', (e) => {
+        localStorage.setItem('jarvis_wakeword', e.target.checked);
+        if (e.target.checked && !isRecording) {
+            startRecording();
+        } else if (!e.target.checked && isRecording) {
+            stopRecording();
+        }
+    });
+  }
+
   saveSettingsBtn.addEventListener('click', () => {
     prefs.model = modelSelect.value;
     prefs.voice = voiceSelect.value;
@@ -820,6 +930,9 @@
     localStorage.setItem('jarvis_prefs', JSON.stringify(prefs));
     applyTheme(prefs.theme);
     metricModel.textContent = modelSelect.options[modelSelect.selectedIndex].text;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'update_settings', settings: prefs }));
+    }
     settingsModal.classList.remove('active');
   });
 
@@ -830,17 +943,17 @@
   // ── History Sidebar Logic ──────────────────────────────────────
   const historyBtn = document.getElementById('historyBtn');
   const closeHistoryBtn = document.getElementById('closeHistoryBtn');
-  const historySidebar = document.getElementById('historySidebar');
+  const historySidebar = document.getElementById('historyModal');
   const historyList = document.getElementById('historyList');
 
   if (historyBtn) {
     historyBtn.addEventListener('click', () => {
-      historySidebar.classList.add('active');
+      historyModal.classList.add('active');
       loadHistory();
     });
   }
   if (closeHistoryBtn) {
-    closeHistoryBtn.addEventListener('click', () => historySidebar.classList.remove('active'));
+    closeHistoryBtn.addEventListener('click', () => historyModal.classList.remove('active'));
   }
 
   async function loadHistory() {
@@ -860,7 +973,7 @@
           item.innerHTML = `<div class="history-item-date">${session.date}</div><div>${session.preview}</div>`;
           item.addEventListener('click', () => {
             loadSession(session.id);
-            historySidebar.classList.remove('active');
+            historyModal.classList.remove('active');
           });
           historyList.appendChild(item);
         });
@@ -922,3 +1035,46 @@
   });
 
 })();
+
+
+// Iteration 33: Toast Notification System
+function showToast(message) {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.textContent = message;
+    container.appendChild(toast);
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+    }, 5000);
+}
+
+
+// Iteration 64: Hacker Terminal Overlay
+const terminalOverlay = document.getElementById('terminalOverlay');
+const terminalInput = document.getElementById('terminalInput');
+const terminalOutput = document.getElementById('terminalOutput');
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === '`') {
+        terminalOverlay.style.display = terminalOverlay.style.display === 'none' ? 'block' : 'none';
+        if (terminalOverlay.style.display === 'block') {
+            setTimeout(() => terminalInput.focus(), 50);
+        }
+    }
+    if (e.key === 'Escape' && terminalOverlay.style.display === 'block') {
+        terminalOverlay.style.display = 'none';
+    }
+});
+
+if (terminalInput) {
+    terminalInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            const val = terminalInput.value;
+            terminalInput.value = '';
+            terminalOutput.innerHTML += `\nadmin@jarvis:~$ ${val}\n> command executed in background.\n`;
+        }
+    });
+}

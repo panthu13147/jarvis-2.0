@@ -13,6 +13,7 @@
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
   <!-- Ambient Background -->
@@ -107,6 +108,12 @@
         <div class="input-wrapper">
           <textarea id="commandInput" placeholder="Input directive..." rows="1"></textarea>
           <div class="composer-actions">
+            <!-- Interupt / Stop Button -->
+            <button class="icon-btn stop-btn" id="stopBtn" title="Stop Speaking" style="display: none; color: #ff4757;">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                <rect x="6" y="6" width="12" height="12"/>
+              </svg>
+            </button>
             <button class="icon-btn mic-btn" id="micBtn" title="Toggle microphone">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
@@ -128,7 +135,20 @@
 
   </div>
 
-  <!-- History & Settings Overlay (Shared) -->
+  
+  <!-- Iteration 13: History Sidebar -->
+  <div class="modal-overlay" id="historyModal">
+    <div class="glass-panel modal-content boot-scale" style="width: 400px; max-height: 80vh; overflow-y: auto;">
+      <div class="modal-header">
+        <h2 class="panel-title">MEMORY LOGS</h2>
+        <button class="icon-btn close-modal" id="closeHistoryBtn">&#x2715;</button>
+      </div>
+      <div class="modal-body" id="historyList" style="display: flex; flex-direction: column; gap: 10px;">
+        <div style="color:var(--text-dim); text-align:center; font-family:monospace; padding:20px;">Loading memory core...</div>
+      </div>
+    </div>
+  </div>
+<!-- History & Settings Overlay (Shared) -->
   <div class="modal-overlay" id="settingsModal">
     <div class="glass-panel modal-content boot-scale">
       <div class="modal-header">
@@ -153,7 +173,15 @@
             <option value="groq">Groq TTS (Cloud, PlayAI)</option>
           </select>
         </div>
+        
         <div class="setting-group">
+          <label>WAKE WORD (BACKGROUND LISTENING)</label>
+          <div style="display:flex; align-items:center; gap: 10px; margin-top:5px;">
+            <input type="checkbox" id="wakeWordToggle" style="width: 20px; height: 20px;" />
+            <span style="color:var(--text); font-family:monospace;">Enable "Hey Jarvis"</span>
+          </div>
+        </div>
+<div class="setting-group">
           <label>VISUAL THEME</label>
           <select id="themeSelect" class="glass-select">
             <option value="iron-man">MK II (Cyan)</option>
@@ -168,8 +196,52 @@
     </div>
   </div>
 
+  
+  <!-- Iteration 32: Vision Feed PiP -->
+  <div id="visionPip" style="position: fixed; top: 20px; right: 20px; width: 150px; height: 100px; background: rgba(0,0,0,0.8); border: 1px solid var(--primary); border-radius: 10px; z-index: 1000; overflow: hidden; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 10px var(--primary);">
+    <span style="color: var(--primary); font-family: monospace; font-size: 0.6rem;">[VISION FEED: ACTIVE]</span>
+  </div>
+  
+  <!-- Iteration 33: Toast Container -->
+  <div id="toastContainer" style="position: fixed; top: 20px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 10px; z-index: 2000;"></div>
+
+  
+  <!-- Iteration 59: Swarm HUD -->
+  <div id="swarmHud" style="position: absolute; bottom: 20px; left: 20px; font-family: monospace; color: var(--primary); font-size: 0.7rem; z-index: 1000;">
+    <div style="font-weight: bold; border-bottom: 1px solid var(--primary); margin-bottom: 5px;">SWARM STATUS</div>
+    <div id="swarmList">No active sub-agents.</div>
+  </div>
+
+  <!-- Iteration 64: Hacker Terminal Overlay -->
+  <div id="terminalOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 5000; color: #0f0; font-family: monospace; padding: 20px;">
+    <div>JARVIS SECURE SHELL v2.0</div>
+    <div>Type 'help' for commands. Press 'Esc' to exit.</div>
+    <div style="display: flex; margin-top: 10px;">
+      <span>admin@jarvis:~$ </span>
+      <input type="text" id="terminalInput" style="background: transparent; border: none; color: #0f0; outline: none; width: 80%; font-family: monospace;" autocomplete="off">
+    </div>
+    <div id="terminalOutput" style="margin-top: 10px; white-space: pre-wrap;"></div>
+  </div>
+
+<!-- HUD & TICKER -->
+  <div class="hud-ticker" id="hudTicker">
+    <div class="hud-stat" id="hudCpu">CPU: --%</div>
+    <div class="hud-stat" id="hudRam">RAM: --%</div>
+    <div class="ticker-wrap">
+      <div class="ticker-text" id="tickerText">Initializing Jarvis MK II Protocol...</div>
+    </div>
+  </div>
+
+  <!-- Audio unlock overlay for browsers requiring user gesture -->
+  <div id="initOverlay" class="init-overlay"></div>
+
   <script src="orb.js"></script>
   <script src="particles.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
+        <!-- Iteration 65: Voice Sliders -->
+        <label>Voice Pitch: <input type="range" id="pitchSlider" min="0" max="2" step="0.1" value="1"></label>
+        <label>Voice Speed: <input type="range" id="speedSlider" min="0.5" max="2" step="0.1" value="1"></label>
+
+      

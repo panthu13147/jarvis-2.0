@@ -1,3 +1,14 @@
+
+const mouse = { x: null, y: null, radius: 150 };
+window.addEventListener('mousemove', (e) => {
+    mouse.x = e.x;
+    mouse.y = e.y;
+});
+window.addEventListener('mouseout', () => {
+    mouse.x = null;
+    mouse.y = null;
+});
+
 /* ══════════════════════════════════════════════════════════════════
    JARVIS PARTICLES — Full-screen floating particle field
    Creates ambient holographic atmosphere behind the orb

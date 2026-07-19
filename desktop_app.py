@@ -57,7 +57,6 @@ def main():
 
     # 3. Register Global Hotkey (Disabled)
     # keyboard.add_hotkey('ctrl+space', trigger_jarvis)
-        print(f"Failed to register hotkey: {e}")
 
     # wait for server to bind
     time.sleep(2) 

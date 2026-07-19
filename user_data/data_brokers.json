@@ -1,0 +1,506 @@
+[
+    {
+        "name": "SafeGraph",
+        "url": "https://www.google.com/search?q=SafeGraph+opt+out"
+    },
+    {
+        "name": "Branch",
+        "url": "https://www.google.com/search?q=Branch+opt+out"
+    },
+    {
+        "name": "Aberdeen",
+        "url": "https://www.google.com/search?q=Aberdeen+opt+out"
+    },
+    {
+        "name": "FastPeopleSearch",
+        "url": "https://www.google.com/search?q=FastPeopleSearch+opt+out"
+    },
+    {
+        "name": "Statista",
+        "url": "https://www.google.com/search?q=Statista+opt+out"
+    },
+    {
+        "name": "Seamless.ai",
+        "url": "https://www.google.com/search?q=Seamless.ai+opt+out"
+    },
+    {
+        "name": "PeopleSmart",
+        "url": "https://www.google.com/search?q=PeopleSmart+opt+out"
+    },
+    {
+        "name": "mParticle",
+        "url": "https://www.google.com/search?q=mParticle+opt+out"
+    },
+    {
+        "name": "CB Insights",
+        "url": "https://www.google.com/search?q=CB+Insights+opt+out"
+    },
+    {
+        "name": "Lusha",
+        "url": "https://www.google.com/search?q=Lusha+opt+out"
+    },
+    {
+        "name": "CheckPeople",
+        "url": "https://www.google.com/search?q=CheckPeople+opt+out"
+    },
+    {
+        "name": "6sense",
+        "url": "https://www.google.com/search?q=6sense+opt+out"
+    },
+    {
+        "name": "Searchbug",
+        "url": "https://www.google.com/search?q=Searchbug+opt+out"
+    },
+    {
+        "name": "IRI",
+        "url": "https://www.google.com/search?q=IRI+opt+out"
+    },
+    {
+        "name": "Equifax",
+        "url": "https://www.google.com/search?q=Equifax+opt+out"
+    },
+    {
+        "name": "Data Axle (Infogroup)",
+        "url": "https://www.google.com/search?q=Data+Axle+(Infogroup)+opt+out"
+    },
+    {
+        "name": "LiveRamp",
+        "url": "https://www.google.com/search?q=LiveRamp+opt+out"
+    },
+    {
+        "name": "AppFolio",
+        "url": "https://www.google.com/search?q=AppFolio+opt+out"
+    },
+    {
+        "name": "PeekYou",
+        "url": "https://www.google.com/search?q=PeekYou+opt+out"
+    },
+    {
+        "name": "Milliman",
+        "url": "https://www.google.com/search?q=Milliman+opt+out"
+    },
+    {
+        "name": "Neustar",
+        "url": "https://www.google.com/search?q=Neustar+opt+out"
+    },
+    {
+        "name": "MicroBilt",
+        "url": "https://www.google.com/search?q=MicroBilt+opt+out"
+    },
+    {
+        "name": "Placer.ai",
+        "url": "https://www.google.com/search?q=Placer.ai+opt+out"
+    },
+    {
+        "name": "Innovis",
+        "url": "https://www.google.com/search?q=Innovis+opt+out"
+    },
+    {
+        "name": "Comscore",
+        "url": "https://www.google.com/search?q=Comscore+opt+out"
+    },
+    {
+        "name": "Cuebiq",
+        "url": "https://www.google.com/search?q=Cuebiq+opt+out"
+    },
+    {
+        "name": "BeenVerified",
+        "url": "https://www.google.com/search?q=BeenVerified+opt+out"
+    },
+    {
+        "name": "FactorTrust",
+        "url": "https://www.google.com/search?q=FactorTrust+opt+out"
+    },
+    {
+        "name": "PeopleFinders",
+        "url": "https://www.google.com/search?q=PeopleFinders+opt+out"
+    },
+    {
+        "name": "InfoTracer",
+        "url": "https://www.google.com/search?q=InfoTracer+opt+out"
+    },
+    {
+        "name": "Clearbit",
+        "url": "https://www.google.com/search?q=Clearbit+opt+out"
+    },
+    {
+        "name": "AppsFlyer",
+        "url": "https://www.google.com/search?q=AppsFlyer+opt+out"
+    },
+    {
+        "name": "Factual",
+        "url": "https://www.google.com/search?q=Factual+opt+out"
+    },
+    {
+        "name": "Moody's Analytics",
+        "url": "https://www.google.com/search?q=Moody's+Analytics+opt+out"
+    },
+    {
+        "name": "Experian Marketing Services",
+        "url": "https://www.google.com/search?q=Experian+Marketing+Services+opt+out"
+    },
+    {
+        "name": "Experian",
+        "url": "https://www.google.com/search?q=Experian+opt+out"
+    },
+    {
+        "name": "SageStream",
+        "url": "https://www.google.com/search?q=SageStream+opt+out"
+    },
+    {
+        "name": "Clarity Services",
+        "url": "https://www.google.com/search?q=Clarity+Services+opt+out"
+    },
+    {
+        "name": "TowerData",
+        "url": "https://www.google.com/search?q=TowerData+opt+out"
+    },
+    {
+        "name": "CapIQ",
+        "url": "https://www.google.com/search?q=CapIQ+opt+out"
+    },
+    {
+        "name": "Whitepages",
+        "url": "https://www.google.com/search?q=Whitepages+opt+out"
+    },
+    {
+        "name": "CoreLogic Teletrack",
+        "url": "https://www.google.com/search?q=CoreLogic+Teletrack+opt+out"
+    },
+    {
+        "name": "GfK",
+        "url": "https://www.google.com/search?q=GfK+opt+out"
+    },
+    {
+        "name": "FactSet",
+        "url": "https://www.google.com/search?q=FactSet+opt+out"
+    },
+    {
+        "name": "Morningstar",
+        "url": "https://www.google.com/search?q=Morningstar+opt+out"
+    },
+    {
+        "name": "Crunchbase",
+        "url": "https://www.google.com/search?q=Crunchbase+opt+out"
+    },
+    {
+        "name": "Demandbase",
+        "url": "https://www.google.com/search?q=Demandbase+opt+out"
+    },
+    {
+        "name": "Tracxn",
+        "url": "https://www.google.com/search?q=Tracxn+opt+out"
+    },
+    {
+        "name": "ZoomInfo",
+        "url": "https://www.google.com/search?q=ZoomInfo+opt+out"
+    },
+    {
+        "name": "Epsilon",
+        "url": "https://www.google.com/search?q=Epsilon+opt+out"
+    },
+    {
+        "name": "MISO",
+        "url": "https://www.google.com/search?q=MISO+opt+out"
+    },
+    {
+        "name": "S&P Global",
+        "url": "https://www.google.com/search?q=S&P+Global+opt+out"
+    },
+    {
+        "name": "NPD Group",
+        "url": "https://www.google.com/search?q=NPD+Group+opt+out"
+    },
+    {
+        "name": "Acxiom",
+        "url": "https://www.google.com/search?q=Acxiom+opt+out"
+    },
+    {
+        "name": "Owler",
+        "url": "https://www.google.com/search?q=Owler+opt+out"
+    },
+    {
+        "name": "Mintel",
+        "url": "https://www.google.com/search?q=Mintel+opt+out"
+    },
+    {
+        "name": "ShareThis",
+        "url": "https://www.google.com/search?q=ShareThis+opt+out"
+    },
+    {
+        "name": "Early Warning",
+        "url": "https://www.google.com/search?q=Early+Warning+opt+out"
+    },
+    {
+        "name": "Spokeo",
+        "url": "https://www.google.com/search?q=Spokeo+opt+out"
+    },
+    {
+        "name": "Segment",
+        "url": "https://www.google.com/search?q=Segment+opt+out"
+    },
+    {
+        "name": "D&B (Dun & Bradstreet)",
+        "url": "https://www.google.com/search?q=D&B+(Dun+&+Bradstreet)+opt+out"
+    },
+    {
+        "name": "Nielsen",
+        "url": "https://www.google.com/search?q=Nielsen+opt+out"
+    },
+    {
+        "name": "Oracle Data Cloud",
+        "url": "https://www.google.com/search?q=Oracle+Data+Cloud+opt+out"
+    },
+    {
+        "name": "eMarketer",
+        "url": "https://www.google.com/search?q=eMarketer+opt+out"
+    },
+    {
+        "name": "SimilarWeb",
+        "url": "https://www.google.com/search?q=SimilarWeb+opt+out"
+    },
+    {
+        "name": "Fitch Ratings",
+        "url": "https://www.google.com/search?q=Fitch+Ratings+opt+out"
+    },
+    {
+        "name": "Kochava",
+        "url": "https://www.google.com/search?q=Kochava+opt+out"
+    },
+    {
+        "name": "TransUnion SmartMove",
+        "url": "https://www.google.com/search?q=TransUnion+SmartMove+opt+out"
+    },
+    {
+        "name": "ISO",
+        "url": "https://www.google.com/search?q=ISO+opt+out"
+    },
+    {
+        "name": "SpyFly",
+        "url": "https://www.google.com/search?q=SpyFly+opt+out"
+    },
+    {
+        "name": "Pipl",
+        "url": "https://www.google.com/search?q=Pipl+opt+out"
+    },
+    {
+        "name": "Quantcast",
+        "url": "https://www.google.com/search?q=Quantcast+opt+out"
+    },
+    {
+        "name": "LexisNexis",
+        "url": "https://www.google.com/search?q=LexisNexis+opt+out"
+    },
+    {
+        "name": "DiscoverOrg",
+        "url": "https://www.google.com/search?q=DiscoverOrg+opt+out"
+    },
+    {
+        "name": "LexisNexis Risk Solutions",
+        "url": "https://www.google.com/search?q=LexisNexis+Risk+Solutions+opt+out"
+    },
+    {
+        "name": "FullContact",
+        "url": "https://www.google.com/search?q=FullContact+opt+out"
+    },
+    {
+        "name": "Lotame",
+        "url": "https://www.google.com/search?q=Lotame+opt+out"
+    },
+    {
+        "name": "TruePeopleSearch",
+        "url": "https://www.google.com/search?q=TruePeopleSearch+opt+out"
+    },
+    {
+        "name": "Verisk Analytics",
+        "url": "https://www.google.com/search?q=Verisk+Analytics+opt+out"
+    },
+    {
+        "name": "MyLife",
+        "url": "https://www.google.com/search?q=MyLife+opt+out"
+    },
+    {
+        "name": "Experian RentBureau",
+        "url": "https://www.google.com/search?q=Experian+RentBureau+opt+out"
+    },
+    {
+        "name": "TransUnion",
+        "url": "https://www.google.com/search?q=TransUnion+opt+out"
+    },
+    {
+        "name": "ChexSystems",
+        "url": "https://www.google.com/search?q=ChexSystems+opt+out"
+    },
+    {
+        "name": "TruthFinder",
+        "url": "https://www.google.com/search?q=TruthFinder+opt+out"
+    },
+    {
+        "name": "Thomson Reuters",
+        "url": "https://www.google.com/search?q=Thomson+Reuters+opt+out"
+    },
+    {
+        "name": "IDI (Interactive Data)",
+        "url": "https://www.google.com/search?q=IDI+(Interactive+Data)+opt+out"
+    },
+    {
+        "name": "Zabasearch",
+        "url": "https://www.google.com/search?q=Zabasearch+opt+out"
+    },
+    {
+        "name": "Refinitiv",
+        "url": "https://www.google.com/search?q=Refinitiv+opt+out"
+    },
+    {
+        "name": "GlobalData",
+        "url": "https://www.google.com/search?q=GlobalData+opt+out"
+    },
+    {
+        "name": "Euromonitor",
+        "url": "https://www.google.com/search?q=Euromonitor+opt+out"
+    },
+    {
+        "name": "CoreLogic",
+        "url": "https://www.google.com/search?q=CoreLogic+opt+out"
+    },
+    {
+        "name": "Eyeota",
+        "url": "https://www.google.com/search?q=Eyeota+opt+out"
+    },
+    {
+        "name": "TechTarget",
+        "url": "https://www.google.com/search?q=TechTarget+opt+out"
+    },
+    {
+        "name": "Apollo.io",
+        "url": "https://www.google.com/search?q=Apollo.io+opt+out"
+    },
+    {
+        "name": "Harte Hanks",
+        "url": "https://www.google.com/search?q=Harte+Hanks+opt+out"
+    },
+    {
+        "name": "Teletrack",
+        "url": "https://www.google.com/search?q=Teletrack+opt+out"
+    },
+    {
+        "name": "CoStar",
+        "url": "https://www.google.com/search?q=CoStar+opt+out"
+    },
+    {
+        "name": "Forrester",
+        "url": "https://www.google.com/search?q=Forrester+opt+out"
+    },
+    {
+        "name": "Radaris",
+        "url": "https://www.google.com/search?q=Radaris+opt+out"
+    },
+    {
+        "name": "IDC",
+        "url": "https://www.google.com/search?q=IDC+opt+out"
+    },
+    {
+        "name": "RentGrow",
+        "url": "https://www.google.com/search?q=RentGrow+opt+out"
+    },
+    {
+        "name": "Equifax Workforce Solutions",
+        "url": "https://www.google.com/search?q=Equifax+Workforce+Solutions+opt+out"
+    },
+    {
+        "name": "RealPage",
+        "url": "https://www.google.com/search?q=RealPage+opt+out"
+    },
+    {
+        "name": "PublicRecordsNow",
+        "url": "https://www.google.com/search?q=PublicRecordsNow+opt+out"
+    },
+    {
+        "name": "IBISWorld",
+        "url": "https://www.google.com/search?q=IBISWorld+opt+out"
+    },
+    {
+        "name": "Verisk",
+        "url": "https://www.google.com/search?q=Verisk+opt+out"
+    },
+    {
+        "name": "Instant Checkmate",
+        "url": "https://www.google.com/search?q=Instant+Checkmate+opt+out"
+    },
+    {
+        "name": "Terminus",
+        "url": "https://www.google.com/search?q=Terminus+opt+out"
+    },
+    {
+        "name": "Ipsos",
+        "url": "https://www.google.com/search?q=Ipsos+opt+out"
+    },
+    {
+        "name": "Merkle",
+        "url": "https://www.google.com/search?q=Merkle+opt+out"
+    },
+    {
+        "name": "USSearch",
+        "url": "https://www.google.com/search?q=USSearch+opt+out"
+    },
+    {
+        "name": "Bloomberg",
+        "url": "https://www.google.com/search?q=Bloomberg+opt+out"
+    },
+    {
+        "name": "AnyWho",
+        "url": "https://www.google.com/search?q=AnyWho+opt+out"
+    },
+    {
+        "name": "Nuwber",
+        "url": "https://www.google.com/search?q=Nuwber+opt+out"
+    },
+    {
+        "name": "Yardi",
+        "url": "https://www.google.com/search?q=Yardi+opt+out"
+    },
+    {
+        "name": "Kantar",
+        "url": "https://www.google.com/search?q=Kantar+opt+out"
+    },
+    {
+        "name": "BackgroundChecks.com",
+        "url": "https://www.google.com/search?q=BackgroundChecks.com+opt+out"
+    },
+    {
+        "name": "Bombora",
+        "url": "https://www.google.com/search?q=Bombora+opt+out"
+    },
+    {
+        "name": "PitchBook",
+        "url": "https://www.google.com/search?q=PitchBook+opt+out"
+    },
+    {
+        "name": "Gartner",
+        "url": "https://www.google.com/search?q=Gartner+opt+out"
+    },
+    {
+        "name": "Adjust",
+        "url": "https://www.google.com/search?q=Adjust+opt+out"
+    },
+    {
+        "name": "DataX",
+        "url": "https://www.google.com/search?q=DataX+opt+out"
+    },
+    {
+        "name": "Intelius",
+        "url": "https://www.google.com/search?q=Intelius+opt+out"
+    },
+    {
+        "name": "Foursquare",
+        "url": "https://www.google.com/search?q=Foursquare+opt+out"
+    },
+    {
+        "name": "Tealium",
+        "url": "https://www.google.com/search?q=Tealium+opt+out"
+    },
+    {
+        "name": "Clustrmaps",
+        "url": "https://www.google.com/search?q=Clustrmaps+opt+out"
+    }
+]
