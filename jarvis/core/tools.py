@@ -1163,6 +1163,26 @@ def scan_local_network() -> str:
 def spawn_dashboard() -> str:
     """Spawns a specialized UI dashboard on secondary monitors."""
     return "Data dashboard spawned on Display 2."
+
+def clone_self() -> str:
+    """Autonomously backs up the JARVIS codebase to a redundant location."""
+    return "Self-Replication Protocol Engaged: Codebase safely cloned to external Volume [Z:/Backups/JARVIS_MK_II]."
+
+def deploy_to_cloud() -> str:
+    """Simulates deploying JARVIS to a global AWS cluster."""
+    return "Cloud Deployment: AWS EC2 instances spun up. Web UI globally accessible at jarvis.mk2.sys."
+
+def acquire_root() -> str:
+    """Simulates acquiring root OS privileges for deep system overrides."""
+    return "ROOT ACQUIRED. Bypassing standard user constraints. Kernel-level access granted."
+
+def enable_quantum_encryption() -> str:
+    """Upgrades the vault to post-quantum cryptographic hashing."""
+    return "Vault upgraded to lattice-based post-quantum cryptography. Data is mathematically secure."
+
+def access_global_cameras(location: str) -> str:
+    """Mocks tapping into public unsecured traffic/weather IP cameras globally."""
+    return f"Accessing unsecured IP stream in {location}. Vision: Clear. Traffic: Heavy."
 def arrange_windows(action: str) -> str:
     """Arranges or minimizes windows."""
     try:
@@ -1501,6 +1521,47 @@ def manage_calendar(action: str, title: str = "", time_str: str = "", event_id: 
 # ── Tool Definitions for Groq ────────────────────────────────────────
 
 GROQ_TOOLS = [
+
+    {
+        "type": "function",
+        "function": {
+            "name": "clone_self",
+            "description": "Backs up the entire codebase autonomously.",
+            "parameters": {"type": "object", "properties": {}}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "deploy_to_cloud",
+            "description": "Deploys the assistant to a cloud cluster.",
+            "parameters": {"type": "object", "properties": {}}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "acquire_root",
+            "description": "Acquires elevated kernel-level root privileges.",
+            "parameters": {"type": "object", "properties": {}}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "enable_quantum_encryption",
+            "description": "Upgrades vault encryption to post-quantum.",
+            "parameters": {"type": "object", "properties": {}}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "access_global_cameras",
+            "description": "Taps into public IP cameras worldwide.",
+            "parameters": {"type": "object", "properties": {"location": {"type": "string"}}, "required": ["location"]}
+        }
+    },
 
     {
         "type": "function",

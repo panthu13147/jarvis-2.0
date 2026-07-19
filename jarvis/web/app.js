@@ -1090,3 +1090,20 @@ if (terminalInput) {
         }
     });
 }
+
+
+// Iteration 97: Mock D3 Memory Graph
+const svg = d3.select("#memoryGraph svg");
+const nodes = [{id: "User"}, {id: "Code"}, {id: "IoT"}, {id: "Swarm"}];
+const links = [{source: "User", target: "Code"}, {source: "User", target: "IoT"}, {source: "IoT", target: "Swarm"}];
+const simulation = d3.forceSimulation(nodes)
+    .force("charge", d3.forceManyBody().strength(-20))
+    .force("link", d3.forceLink(links).distance(30))
+    .force("center", d3.forceCenter(100, 67));
+const link = svg.append("g").selectAll("line").data(links).enter().append("line").attr("stroke", "var(--primary)");
+const node = svg.append("g").selectAll("circle").data(nodes).enter().append("circle").attr("r", 3).attr("fill", "#fff");
+simulation.on("tick", () => {
+    link.attr("x1", d => d.source.x).attr("y1", d => d.source.y)
+        .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
+    node.attr("cx", d => d.x).attr("cy", d => d.y);
+});

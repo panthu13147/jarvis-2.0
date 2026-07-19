@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
 </head>
 <body>
   <!-- Ambient Background -->
@@ -227,6 +228,13 @@
   <!-- Iteration 86: Voice Auth UI -->
   <div id="voiceAuth" style="position: absolute; top: 20px; left: 20px; font-family: monospace; font-size: 0.7rem; padding: 5px 10px; border: 1px solid var(--primary); border-radius: 5px; color: var(--primary);">
     VOICE PRINT: <span id="authStatus" style="color: #f00;">UNVERIFIED</span>
+  </div>
+
+
+  <!-- Iteration 97: Real-Time Memory Graph -->
+  <div id="memoryGraph" style="position: absolute; top: 20px; right: 20px; width: 200px; height: 150px; border: 1px solid var(--primary); border-radius: 5px; background: rgba(0,0,0,0.5);">
+    <div style="font-family: monospace; font-size: 0.6rem; color: var(--primary); text-align: center; border-bottom: 1px solid var(--primary);">NEURAL GRAPH</div>
+    <svg width="200" height="135"></svg>
   </div>
 
 <!-- HUD & TICKER -->
